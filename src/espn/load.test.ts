@@ -74,3 +74,16 @@ it('loads the live slate from the matchup, the player pool and the real kickoffs
   expect(result.slate.events).toEqual([]);
   expect(Number(result.toT(1790528400000).toFixed(6))).toBe(0.200957);
 });
+
+it('reports the room identity of the viewer\u2019s matchup', async () => {
+  const { fetchImpl } = fakeFetch();
+  const info = await loadLeagueInfo({ fetchImpl });
+
+  const result = await loadLiveSlate(info, 1, { timeZone: 'America/New_York', fetchImpl });
+
+  expect(result.matchupId).toBe(16);
+  expect(result.myTeamId).toBe(1);
+  expect(result.oppTeamId).toBe(10);
+  expect(result.week).toBe(3);
+  expect(result.season).toBe(2026);
+});

@@ -95,3 +95,34 @@ it('tells the viewer how to fix a private league', () => {
   expect(m).toContain('Retry');
   expect(m).toContain('Use demo');
 });
+
+it('shows the opponent\u2019s presence and the taunt box in a live room', () => {
+  const m = renderToStaticMarkup(
+    <MatchupPage
+      slate={HALF}
+      liveNow={() => 0.06}
+      talk={{ connected: true, oppWatching: true, send: () => true }}
+    />,
+  );
+
+  expect(m).toContain('DAVE IS WATCHING');
+  expect(m).toContain('placeholder="SAY SOMETHING"');
+  const box = /<input[^>]*placeholder="SAY SOMETHING"[^>]*>/.exec(m)?.[0] ?? '';
+  expect(box).toMatch(/maxlength="24"/i);
+  expect(box).not.toContain('disabled');
+});
+
+it('says talk is offline and disables the box without a room', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={HALF} liveNow={() => 0.06} talk={null} />);
+
+  expect(m).toContain('TALK OFFLINE');
+  const box = /<input[^>]*placeholder="SAY SOMETHING"[^>]*>/.exec(m)?.[0] ?? '';
+  expect(box).toContain('disabled');
+});
+
+it('keeps the demo free of the talk box and the room status', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={HALF} />);
+
+  expect(m).not.toContain('SAY SOMETHING');
+  expect(m).not.toContain('TALK OFFLINE');
+});

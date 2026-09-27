@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { espnBase, savedKey } from './espn/client';
 import { loadLeagueInfo, loadLiveSlate, type LeagueInfo, type LiveSlate } from './espn/load';
 import { mockSlate } from './sim/mock';
+import { connectTalk, talkUrl, type TalkConnection } from './talk/socket';
 import { ConnectError, ModeSwitch, TeamPicker } from './ui/Connect';
 import { MatchupPage } from './ui/MatchupPage';
 
@@ -50,9 +52,15 @@ export default function App() {
   const [team, setTeam] = useState<number | null>(readTeam);
   const [live, setLive] = useState<LiveSlate | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [room, setRoom] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [oppWatching, setOppWatching] = useState(false);
+  const [remoteTaunt, setRemoteTaunt] = useState<{ id: number; text: string } | null>(null);
 
   const demo = useMemo(() => mockSlate('Half PPR'), []);
   const liveRef = useRef<LiveSlate | null>(null);
+  const talkRef = useRef<TalkConnection | null>(null);
+  const tauntRef = useRef(0);
   const picked = info && team !== null && info.teams.some(t => t.id === team) ? team : null;
 
   useEffect(() => {
@@ -80,21 +88,49 @@ export default function App() {
     setError(null);
     setLive(null);
     liveRef.current = null;
+    setRoom(false);
+    setConnected(false);
+    setOppWatching(false);
+    setRemoteTaunt(null);
     loadLiveSlate(info, picked, { timeZone: TZ })
       .then(next => {
         if (ignore) return;
         liveRef.current = next;
         setLive(next);
+
+        const url = talkUrl(espnBase(), {
+          season: next.season,
+          week: next.week,
+          matchupId: next.matchupId,
+          team: next.myTeamId,
+        });
+        const key = savedKey();
+        if (url === null || key === null) return;
+
+        talkRef.current = connectTalk(url, key, {
+          onTaunt: (teamId, text) => {
+            if (teamId !== next.oppTeamId) return;
+            tauntRef.current += 1;
+            setRemoteTaunt({ id: tauntRef.current, text });
+          },
+          onPresence: teams => setOppWatching(teams.includes(next.oppTeamId)),
+          onStatus: setConnected,
+        });
+        setRoom(true);
       })
       .catch((caught: unknown) => {
         if (!ignore) setError(caught);
       });
     return () => {
       ignore = true;
+      talkRef.current?.close();
+      talkRef.current = null;
     };
   }, [mode, info, picked]);
 
   const liveNow = useCallback(() => (liveRef.current ? liveRef.current.toT(Date.now()) : 0), []);
+  const sendTaunt = useCallback((text: string) => talkRef.current?.send(text) ?? false, []);
+  const talk = room ? { send: sendTaunt, connected, oppWatching } : null;
 
   const changeMode = (next: Mode) => {
     store('ff_mode', next);
@@ -146,6 +182,8 @@ export default function App() {
       headerExtra={switcher}
       liveNow={liveNow}
       storageKey="ff_live_v1"
+      talk={talk}
+      remoteTaunt={remoteTaunt}
     />
   );
 }

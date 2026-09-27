@@ -81,6 +81,8 @@ export interface MatchupPageProps {
   headerExtra?: ReactNode;
   liveNow?: () => number;
   storageKey?: string;
+  talk?: { send(text: string): boolean; connected: boolean; oppWatching: boolean } | null;
+  remoteTaunt?: { id: number; text: string } | null;
 }
 
 export function MatchupPage({
@@ -91,6 +93,8 @@ export function MatchupPage({
   headerExtra,
   liveNow,
   storageKey = STORAGE_KEY,
+  talk = null,
+  remoteTaunt = null,
 }: MatchupPageProps): JSX.Element {
   const [state, setState] = useState<PageState>(() => ({
     ...initPlayback(readSaved(storageKey)),
@@ -102,6 +106,7 @@ export function MatchupPage({
   }));
   const [pressed, setPressed] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
 
   const stateRef = useRef(state);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -207,6 +212,10 @@ export function MatchupPage({
     const s = stateRef.current;
     apply({ ...s, bubbles: { ...s.bubbles, me: { id: ++bidRef.current, text } } });
     sfx('taunt');
+    if (liveNow) {
+      talk?.send(text);
+      return;
+    }
     later(() => {
       const cur = stateRef.current;
       const reply = REPLIES[Math.floor(Math.random() * REPLIES.length)];
@@ -261,7 +270,7 @@ export function MatchupPage({
                 : e.kind === 'fg' || e.kind === 'xp' ? 'kick'
                   : 'pos';
           if (!snd || RANK[k] > RANK[snd]) snd = k;
-          if (TDK[e.kind] && e.side === 'opp' && Math.random() < 0.5) {
+          if (!liveNow && TDK[e.kind] && e.side === 'opp' && Math.random() < 0.5) {
             bubbles = { ...bubbles, opp: { id: ++bidRef.current, text: OPP_TAUNTS[Math.floor(Math.random() * 4)] } };
           }
         }
@@ -291,6 +300,14 @@ export function MatchupPage({
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
   }, []);
+
+  const remoteId = remoteTaunt ? remoteTaunt.id : 0;
+  useEffect(() => {
+    if (!remoteTaunt) return;
+    const cur = stateRef.current;
+    apply({ ...cur, bubbles: { ...cur.bubbles, opp: { id: ++bidRef.current, text: remoteTaunt.text } } });
+    sfx('reply');
+  }, [remoteId]);
 
   const { t, liveT, speed, scrubbing, sound, anims, banner, w } = state;
   const compact = w < 760;
@@ -488,6 +505,29 @@ export function MatchupPage({
               {text}
             </button>
           ))}
+          {liveNow ? (
+            <>
+              <input
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return;
+                  const text = draft.trim();
+                  setDraft('');
+                  if (text) sendTaunt(text);
+                }}
+                placeholder="SAY SOMETHING"
+                maxLength={24}
+                disabled={!talk || !talk.connected}
+                style={{ fontFamily: LILITA, fontSize: 14, width: 160, padding: '6px 12px', background: CREAM, border: '2px solid ' + INK, borderRadius: 999, color: INK }}
+              />
+              <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566' }}>
+                {talk && talk.connected
+                  ? talk.oppWatching ? `${slate.opp.owner} IS WATCHING` : `${slate.opp.owner} ISN'T HERE`
+                  : 'TALK OFFLINE'}
+              </div>
+            </>
+          ) : null}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(0,1fr)' : 'minmax(0,1fr) 330px', gap: 16, alignItems: 'start' }}>
