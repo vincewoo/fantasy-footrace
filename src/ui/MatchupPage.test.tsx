@@ -263,3 +263,44 @@ it('keeps a singular verb for a single owner', () => {
 
   expect(m).toMatch(/DAVE ISN(&#x27;|')T HERE/);
 });
+
+const WIDE_AXIS_ROW =
+  '<div style="position:relative;height:11px;font-family:&#x27;Silkscreen&#x27;, monospace;font-size:9px;color:#5b5566;white-space:nowrap">'
+  + '<div style="position:absolute;left:0">1 PM</div>'
+  + '<div style="position:absolute;left:28.6%;transform:translateX(-50%)">4 PM</div>'
+  + '<div style="position:absolute;left:69.8%;transform:translateX(-50%)">SNF</div>'
+  + '<div style="position:absolute;right:0">END</div></div>';
+
+it('replaces the axis labels with notches and one label that follows the handle on a phone', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={mockSlate('Half PPR')} initialWidth={390} />);
+  const count = (needle: string) => m.split(needle).length - 1;
+  const now = /<div data-axis-now="true" style="([^"]*)">([^<]*)</.exec(m);
+
+  expect(count('data-axis-notch')).toBe(3);
+  expect(count('data-axis-now')).toBe(1);
+  expect(now?.[2]).toBe('1:38 PM');
+  expect(now?.[1]).toContain('top:7px');
+  expect(now?.[1]).toContain('left:0');
+  expect(m).not.toContain('translateX(-50%)">1:38');
+  for (const label of ['>1 PM<', '>4 PM<', '>SNF<', '>END<']) expect(m).not.toContain(label);
+});
+
+it('keeps every kickoff label on a wide screen, byte-identical to the base markup', () => {
+  const wide = renderToStaticMarkup(<MatchupPage slate={mockSlate('Half PPR')} initialWidth={1200} />);
+  const omitted = renderToStaticMarkup(<MatchupPage slate={mockSlate('Half PPR')} />);
+
+  for (const label of ['>1 PM<', '>4 PM<', '>SNF<', '>END<']) expect(wide).toContain(label);
+  expect(wide).toContain(WIDE_AXIS_ROW);
+  expect(omitted).toBe(wide);
+  expect(wide).not.toContain('data-axis-');
+});
+
+it('follows the live clock with the single axis label on a phone', () => {
+  const m = renderToStaticMarkup(
+    <MatchupPage slate={mockSlate('Half PPR')} initialWidth={390} liveNow={() => 0.5} liveClock={() => 'SUN 5:15 AM'} />,
+  );
+  const now = /<div data-axis-now="true" style="([^"]*)">([^<]*)</.exec(m);
+
+  expect(now?.[2]).toBe('SUN 5:15 AM');
+});
+

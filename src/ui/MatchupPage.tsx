@@ -102,6 +102,7 @@ export interface MatchupPageProps {
   headerExtra?: ReactNode;
   liveNow?: () => number;
   liveClock?: () => string;
+  initialWidth?: number;
   storageKey?: string;
   talk?: { send(text: string): boolean; connected: boolean; oppWatching: boolean } | null;
   remoteTaunt?: { id: number; text: string } | null;
@@ -115,6 +116,7 @@ export function MatchupPage({
   headerExtra,
   liveNow,
   liveClock,
+  initialWidth = 1200,
   storageKey = STORAGE_KEY,
   talk = null,
   remoteTaunt = null,
@@ -125,7 +127,7 @@ export function MatchupPage({
     anims: {},
     banner: null,
     bubbles: { me: null, opp: null },
-    w: 1200,
+    w: initialWidth,
   }));
   const [pressed, setPressed] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -475,6 +477,16 @@ export function MatchupPage({
 
   const clock = final ? 'FINAL' : liveClock && !isReplay && t < 1 ? liveClock() : slate.clockLabel(t);
 
+  const axisNowStyle: CSSProperties = {
+    position: 'absolute',
+    top: 7,
+    fontFamily: SILK,
+    fontSize: 9,
+    color: '#5b5566',
+    whiteSpace: 'nowrap',
+    ...(t < 0.15 ? { left: 0 } : t > 0.85 ? { right: 0 } : { left: t * 100 + '%', transform: 'translateX(-50%)' }),
+  };
+
   return (
     <div ref={rootRef} style={{ minHeight: '100vh', background: '#efe8d6', color: '#1c1a22', fontFamily: "'Nunito', sans-serif", padding: '16px 14px 120px' }}>
       <div style={{ maxWidth: 1320, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -679,10 +691,19 @@ export function MatchupPage({
               <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: t * 100 + '%', background: '#1c1a22', borderRadius: '4px 0 0 4px' }} />
               <div style={{ position: 'absolute', top: -6, left: t * 100 + '%', width: 14, height: 30, marginLeft: -7, background: '#ffd23f', border: '2px solid #1c1a22', borderRadius: 4, boxShadow: '0 2px 0 #1c1a22' }} />
             </div>
-            <div style={{ position: 'relative', height: 11, fontFamily: SILK, fontSize: 9, color: '#5b5566', whiteSpace: 'nowrap' }}>
-              {slate.axis.map((mark, i) => (
-                <div key={mark.label} style={{ position: 'absolute', ...(i === 0 ? { left: 0 } : i === slate.axis.length - 1 ? { right: 0 } : { left: axisLeft(mark.t), transform: 'translateX(-50%)' }) }}>{mark.label}</div>
-              ))}
+            <div style={{ position: 'relative', height: compact ? 20 : 11, fontFamily: SILK, fontSize: 9, color: '#5b5566', whiteSpace: 'nowrap' }}>
+              {compact ? (
+                <>
+                  {slate.axis.filter(mark => mark.t < 1).map(mark => (
+                    <div key={mark.label} data-axis-notch style={{ position: 'absolute', left: axisLeft(mark.t), width: 2, height: 6, top: 0, background: '#5b5566', transform: 'translateX(-50%)' }} />
+                  ))}
+                  <div data-axis-now style={axisNowStyle}>{clock}</div>
+                </>
+              ) : (
+                slate.axis.map((mark, i) => (
+                  <div key={mark.label} style={{ position: 'absolute', ...(i === 0 ? { left: 0 } : i === slate.axis.length - 1 ? { right: 0 } : { left: axisLeft(mark.t), transform: 'translateX(-50%)' }) }}>{mark.label}</div>
+                ))
+              )}
             </div>
           </div>
           <button onClick={jumpLive} {...press('live')} style={{ height: 36, borderRadius: 999, background: isReplay ? '#ff5a4a' : '#fffaf0', border: '3px solid #1c1a22', boxShadow: '0 3px 0 #1c1a22', fontFamily: SILK, fontWeight: 700, fontSize: 12, color: isReplay ? CREAM : INK, cursor: 'pointer', flex: 'none', padding: '0 12px', ...pressedStyle('live', 2) }}>LIVE</button>
