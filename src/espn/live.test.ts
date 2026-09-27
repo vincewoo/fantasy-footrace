@@ -9,6 +9,7 @@ import { buildTimeline } from './timeline';
 import {
   actualOf,
   decompose,
+  describeAdjust,
   describeLive,
   eventsFromPoll,
   readPoll,
@@ -177,12 +178,13 @@ describe('decompose', () => {
       WR: 'catch',
       TE: 'catch',
       K: 'xp',
-      DST: 'sack',
-      DP: 'sack',
     };
 
     for (const pos of Object.keys(kinds) as Pos[]) {
       expect(decompose(pos, null, bare)).toEqual([{ kind: kinds[pos], yds: 0, pts: 3 }]);
+    }
+    for (const pos of ['DST', 'DP'] as Pos[]) {
+      expect(decompose(pos, null, bare)).toEqual([{ kind: 'rush', yds: 0, pts: 3, adjust: true }]);
     }
     expect(decompose('DST', null, { total: 0, stats: {}, applied: {} })).toEqual([]);
   });
@@ -414,5 +416,114 @@ describe('withEvents', () => {
     const merged = withEvents(withEvents(slate, [first]), [second]);
 
     expect(merged.events.map(e => [e.id, e.t])).toEqual([[3, 0.2], [2, 0.5]]);
+  });
+});
+
+describe('decompose for defense', () => {
+  it('reports points allowed on its own piece when nothing else counted', () => {
+    expect(decompose('DST', null, { total: -3, stats: {}, applied: { '124': -3 } })).toEqual([
+      { kind: 'rush', yds: 0, pts: -3, adjust: true },
+    ]);
+  });
+
+  it('keeps a sack’s own points and reports the allowed points separately', () => {
+    const pieces = decompose('DST', null, { total: -2, stats: { '99': 1 }, applied: { '99': 1, '124': -3 } });
+
+    expect(pieces).toEqual([
+      { kind: 'sack', yds: 0, pts: 1 },
+      { kind: 'rush', yds: 0, pts: -3, adjust: true },
+    ]);
+    expect(sumOf(pieces)).toBe(-2);
+  });
+
+  it('spreads defense yardage pieces ahead of the adjustment', () => {
+    const pieces = decompose('DP', null, { total: 2.5, stats: { '99': 2 }, applied: { '99': 2, '124': 0.5 } });
+
+    expect(pieces).toEqual([
+      { kind: 'sack', yds: 0, pts: 1 },
+      { kind: 'sack', yds: 0, pts: 1 },
+      { kind: 'rush', yds: 0, pts: 0.5, adjust: true },
+    ]);
+  });
+
+  it('leaves offense bonuses folded into the last piece', () => {
+    const pieces = decompose('WR', null, actualNamed('Drake London'));
+    const last = pieces[pieces.length - 1];
+
+    expect(last.pts).toBe(3.72);
+    expect(last.adjust).toBeUndefined();
+    expect(pieces.some(p => p.adjust !== undefined)).toBe(false);
+  });
+});
+
+describe('describeAdjust', () => {
+  it('names the direction of the points for defense', () => {
+    expect(describeAdjust('DST', 'Bengals D/ST', -3)).toBe('Bengals D/ST give up points');
+    expect(describeAdjust('DST', 'Bengals D/ST', 2)).toBe('Bengals D/ST tighten up');
+    expect(describeAdjust('DP', 'Warner', 1.5)).toBe('Warner makes a stop');
+    expect(describeAdjust('DP', 'Warner', -1.5)).toBe('Warner loses points');
+    expect(describeAdjust('QB', 'Love', 1.5)).toBe('Love gains points');
+    expect(describeAdjust('QB', 'Love', -1.5)).toBe('Love loses points');
+  });
+});
+
+describe('eventsFromPoll for the defense feed', () => {
+  const slot = (id: string, name: string, last: string, pos: Pos): any => ({
+    id,
+    name,
+    last,
+    pos,
+    team: 'x',
+    num: 1,
+    proj: 0,
+    skin: 0,
+    hair: 'short',
+    window: [0, 1],
+  });
+  const empty = (pos: Pos): any => slot('empty', 'EMPTY', 'EMPTY', pos);
+  const slateWith = (lanes: any[]): Slate => ({
+    me: { name: 'Me', owner: 'YOU' },
+    opp: { name: 'Opp', owner: 'THEM' },
+    lanes,
+    events: [],
+    teamColors: {},
+    axis: [],
+    clockLabel: () => '',
+    statusLabel: () => '',
+  }) as Slate;
+
+  const defSlate = slateWith([
+    { slot: 'D/ST', me: slot('-16004', 'Bengals D/ST', 'D/ST', 'DST'), opp: empty('DST') },
+    { slot: 'QB', me: slot('1234', 'Jordan Love', 'Love', 'QB'), opp: empty('QB') },
+  ]);
+  const love = actualNamed('Jordan Love');
+
+  it('names the D/ST by team and calls allowed points a give-up', () => {
+    const events = eventsFromPoll(defSlate, null, {
+      actuals: { '-16004': { total: -3, stats: {}, applied: { '124': -3 } }, '1234': love },
+      out: [],
+    }, 1, 1);
+    const def = events.filter(e => e.lane === 0);
+
+    expect(def).toHaveLength(1);
+    expect(def[0]).toMatchObject({ kind: 'rush', yds: 0, pts: -3, text: 'Bengals D/ST give up points' });
+    expect(events.filter(e => e.lane === 1)[0].text).toBe('Love completes 39 yds');
+  });
+
+  it('labels a D/ST sack and a ruled-out D/ST with the team name', () => {
+    const sack = eventsFromPoll(defSlate, null, {
+      actuals: { '-16004': { total: 1, stats: { '99': 1 }, applied: { '99': 1 } } },
+      out: [],
+    }, 1, 1);
+    const ruledOut = eventsFromPoll(defSlate, null, {
+      actuals: { '-16004': { total: 0, stats: {}, applied: {} } },
+      out: ['-16004'],
+    }, 1, 1);
+
+    expect(sack).toHaveLength(1);
+    expect(sack[0].kind).toBe('sack');
+    expect(sack[0].text.startsWith('Bengals D/ST ')).toBe(true);
+    expect(ruledOut).toHaveLength(1);
+    expect(ruledOut[0]).toMatchObject({ kind: 'injury', text: 'Bengals D/ST ruled OUT' });
   });
 });

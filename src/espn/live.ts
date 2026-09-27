@@ -10,6 +10,7 @@ export interface Piece {
   kind: EventKind;
   yds: number;
   pts: number;
+  adjust?: true;
 }
 
 export interface PollState {
@@ -185,6 +186,15 @@ export function decompose(pos: Pos, prev: Actual | null, cur: Actual): Piece[] {
   const sum = pieces.reduce((total, piece) => total + piece.pts, 0);
   const rem = round2(dTotal - sum);
 
+  if (pos === 'DST' || pos === 'DP') {
+    if (pieces.length > 0) {
+      if (Math.abs(rem) >= 0.005) pieces.push({ kind: 'rush', yds: 0, pts: rem, adjust: true });
+      return pieces;
+    }
+    if (Math.abs(dTotal) >= 0.005) return [{ kind: 'rush', yds: 0, pts: dTotal, adjust: true }];
+    return [];
+  }
+
   if (pieces.length > 0) {
     if (Math.abs(rem) >= 0.005) {
       const last = pieces.length - 1;
@@ -225,6 +235,12 @@ export function describeLive(kind: EventKind, last: string, yds: number): string
   }
 }
 
+export function describeAdjust(pos: Pos, name: string, pts: number): string {
+  if (pos === 'DST') return pts < 0 ? `${name} give up points` : `${name} tighten up`;
+  if (pos === 'DP') return pts < 0 ? `${name} loses points` : `${name} makes a stop`;
+  return `${name} ${pts < 0 ? 'loses' : 'gains'} points`;
+}
+
 function startersOf(side: any): any[] {
   const entries = side?.rosterForCurrentScoringPeriod?.entries ?? [];
   return entries.filter((e: any) => !BENCH_SLOTS.has(e?.lineupSlotId));
@@ -260,7 +276,10 @@ export function eventsFromPoll(
   tNow: number,
   firstId: number,
 ): PlayEvent[] {
-  const draft: { t: number; side: Side; lane: number; kind: EventKind; yds: number; pts: number; last: string }[] = [];
+  const draft: {
+    t: number; side: Side; lane: number; kind: EventKind; yds: number; pts: number;
+    name: string; pos: Pos; adjust?: true;
+  }[] = [];
 
   slate.lanes.forEach((lane, i) => {
     for (const side of SIDES) {
@@ -268,13 +287,14 @@ export function eventsFromPoll(
       if (player.id === 'empty') continue;
 
       const id = player.id;
+      const name = player.pos === 'DST' ? player.name : player.last;
       const first = prev === null || !(id in prev.actuals);
       const [w0, w1] = player.window;
       const curOut = cur.out.includes(id);
       const prevOut = prev !== null && prev.out.includes(id);
 
       if (curOut && !prevOut) {
-        draft.push({ t: first ? w0 : Math.max(tNow, w0), side, lane: i, kind: 'injury', yds: 0, pts: 0, last: player.last });
+        draft.push({ t: first ? w0 : Math.max(tNow, w0), side, lane: i, kind: 'injury', yds: 0, pts: 0, name, pos: player.pos });
       }
 
       const actual = cur.actuals[id];
@@ -288,7 +308,7 @@ export function eventsFromPoll(
         const t = first
           ? w0 + ((j + 1) / (n + 1)) * (Math.min(Math.max(tNow, w0), w1) - w0)
           : Math.max(tNow, w0) + (j + 1) * 1e-6;
-        draft.push({ t, side, lane: i, kind: piece.kind, yds: piece.yds, pts: piece.pts, last: player.last });
+        draft.push({ t, side, lane: i, kind: piece.kind, yds: piece.yds, pts: piece.pts, name, pos: player.pos, adjust: piece.adjust });
       });
     }
   });
@@ -303,7 +323,7 @@ export function eventsFromPoll(
     kind: e.kind,
     yds: e.yds,
     pts: e.pts,
-    text: describeLive(e.kind, e.last, e.yds),
+    text: e.adjust ? describeAdjust(e.pos, e.name, e.pts) : describeLive(e.kind, e.name, e.yds),
   }));
 }
 
