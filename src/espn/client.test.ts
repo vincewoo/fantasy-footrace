@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { EspnError, espnBase, fetchLeague, fetchSeason, leagueUrl, seasonUrl, LEAGUE_ID, SEASON } from './client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EspnError, espnBase, fetchLeague, fetchSeason, KEY_STORAGE, leagueUrl, seasonUrl, LEAGUE_ID, SEASON } from './client';
 
 const LEAGUE_PATH = `/apis/v3/games/ffl/seasons/${SEASON}/segments/0/leagues/${LEAGUE_ID}`;
 
@@ -154,5 +154,47 @@ describe('fetchSeason', () => {
 
     expect(error).toBeInstanceOf(EspnError);
     expect(error).toMatchObject({ kind: 'network' });
+  });
+});
+
+function stubKey(stored: string | null): void {
+  const store = new Map<string, string>();
+  if (stored !== null) store.set(KEY_STORAGE, stored);
+  vi.stubGlobal('localStorage', {
+    getItem: (name: string) => store.get(name) ?? null,
+    setItem: (name: string, value: string) => void store.set(name, value),
+  });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe('passphrase', () => {
+  it('reports a FOOTRACE_KEY 403 as a key error', async () => {
+    const { fetchImpl } = fakeFetch(fakeResponse(403, { type: 'FOOTRACE_KEY' }));
+
+    const error = await fetchLeague(['mTeam'], { fetchImpl }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(EspnError);
+    expect(error).toMatchObject({ kind: 'key', status: 403 });
+  });
+
+  it('sends the saved key as X-Footrace-Key', async () => {
+    stubKey('k1');
+    const { calls, fetchImpl } = fakeFetch(fakeResponse(200, {}));
+
+    await fetchLeague(['mTeam'], { fetchImpl });
+
+    expect(headersOf(calls[0])['X-Footrace-Key']).toBe('k1');
+  });
+
+  it('sends no key header when none is saved', async () => {
+    stubKey(null);
+    const { calls, fetchImpl } = fakeFetch(fakeResponse(200, {}));
+
+    await fetchLeague(['mTeam'], { fetchImpl });
+
+    expect(headersOf(calls[0])['X-Footrace-Key']).toBeUndefined();
   });
 });

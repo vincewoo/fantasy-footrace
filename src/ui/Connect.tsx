@@ -1,5 +1,5 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { EspnError } from '../espn/client';
+import { useState, type CSSProperties, type ReactNode } from 'react';
+import { EspnError, saveKey } from '../espn/client';
 import type { LeagueTeam } from '../espn/slate';
 
 const INK = '#1c1a22';
@@ -43,6 +43,17 @@ const PILL: CSSProperties = {
   boxShadow: '0 3px 0 ' + INK,
   cursor: 'pointer',
   color: INK,
+};
+
+const INPUT: CSSProperties = {
+  fontFamily: SILK,
+  fontSize: 11,
+  padding: '8px 12px',
+  background: CREAM,
+  border: '2px solid ' + INK,
+  borderRadius: 999,
+  color: INK,
+  minWidth: 160,
 };
 
 function button(on: boolean, extra?: CSSProperties): CSSProperties {
@@ -98,15 +109,40 @@ function problem(error: unknown): string {
   if (espn?.kind === 'private') {
     return "ESPN says this league is private. The proxy isn't sending your cookies - check ESPN_S2 and SWID in .env.local and restart pnpm dev.";
   }
+  if (espn?.kind === 'key') return 'This app needs the league passphrase.';
   if (espn?.kind === 'network') return "Can't reach the ESPN proxy.";
   return `ESPN returned an error (${espn ? espn.status : 0}).`;
 }
 
 export function ConnectError(props: { error: unknown; onRetry(): void; onDemo(): void }): JSX.Element {
+  const [key, setKey] = useState('');
+  const wantsKey = props.error instanceof EspnError && props.error.kind === 'key';
+
   return (
     <Card>
       <div style={TITLE}>Can't load your league</div>
       <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.4 }}>{problem(props.error)}</div>
+      {wantsKey ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            type="password"
+            value={key}
+            onChange={event => setKey(event.target.value)}
+            placeholder="League passphrase"
+            aria-label="League passphrase"
+            style={INPUT}
+          />
+          <button
+            onClick={() => {
+              saveKey(key.trim());
+              props.onRetry();
+            }}
+            style={PILL}
+          >
+            Unlock
+          </button>
+        </div>
+      ) : null}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button onClick={props.onRetry} style={PILL}>Retry</button>
         <button onClick={props.onDemo} style={PILL}>Use demo</button>
