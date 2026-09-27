@@ -1,3 +1,5 @@
 
 # ADW local state and runtime artifacts
 .adw/
+node_modules/
+dist/
