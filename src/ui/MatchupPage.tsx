@@ -14,6 +14,7 @@ const OPP_TXT = '#c23e27';
 const LILITA = "'Lilita One', sans-serif";
 const SILK = "'Silkscreen', monospace";
 const STORAGE_KEY = 'gd_sim_v1';
+export const SOUND_KEY = 'ff_sound';
 
 const TDK: Record<string, boolean> = { passTD: true, rushTD: true, recTD: true, dtd: true };
 const RANK: Record<string, number> = { td: 5, hurt: 4, bad: 3, kick: 2, pos: 1 };
@@ -69,6 +70,22 @@ function persist(key: string, t: number, liveT: number, speed: number): void {
   }
 }
 
+export function readSoundPref(): boolean {
+  try {
+    return localStorage.getItem(SOUND_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+export function saveSoundPref(on: boolean): void {
+  try {
+    localStorage.setItem(SOUND_KEY, on ? 'on' : 'off');
+  } catch {
+    // storage stays optional: a node render, private mode or a blocked origin all throw
+  }
+}
+
 function axisLeft(t: number): string {
   return Number((t * 100).toFixed(2)) + '%';
 }
@@ -104,7 +121,7 @@ export function MatchupPage({
 }: MatchupPageProps): JSX.Element {
   const [state, setState] = useState<PageState>(() => ({
     ...initPlayback(readSaved(storageKey)),
-    sound: false,
+    sound: readSoundPref(),
     anims: {},
     banner: null,
     bubbles: { me: null, opp: null },
@@ -152,7 +169,7 @@ export function MatchupPage({
     });
   };
 
-  const toggleSound = () => {
+  const ensureAudio = () => {
     if (!acRef.current) {
       try {
         const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -163,7 +180,13 @@ export function MatchupPage({
     }
     const ac = acRef.current;
     if (ac && ac.state === 'suspended') void ac.resume();
-    apply({ ...stateRef.current, sound: !stateRef.current.sound });
+  };
+
+  const toggleSound = () => {
+    ensureAudio();
+    const next = !stateRef.current.sound;
+    apply({ ...stateRef.current, sound: next });
+    saveSoundPref(next);
     sfx('pos');
   };
 
@@ -299,6 +322,20 @@ export function MatchupPage({
     apply({ ...stateRef.current, w: el.getBoundingClientRect().width });
     return () => {
       if (ro) ro.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const unlock = () => {
+      document.removeEventListener('pointerdown', unlock, { capture: true });
+      document.removeEventListener('keydown', unlock, { capture: true });
+      ensureAudio();
+    };
+    document.addEventListener('pointerdown', unlock, { capture: true });
+    document.addEventListener('keydown', unlock, { capture: true });
+    return () => {
+      document.removeEventListener('pointerdown', unlock, { capture: true });
+      document.removeEventListener('keydown', unlock, { capture: true });
     };
   }, []);
 

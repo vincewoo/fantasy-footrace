@@ -25,7 +25,7 @@ it('renders the design\u2019s header, scoreboard and controls on the first frame
   expect(m).toContain('>LIVE<');
   expect(m).toContain('19 PLAYS');
   expect(m).toContain('src="/logo.svg"');
-  expect(m).toContain('SOUND: OFF');
+  expect(m).toContain('SOUND: ON');
   expect(m).toContain('>x1<');
   expect(m).toContain('>PAUSE<');
 });
@@ -159,4 +159,67 @@ it('animates and marks OUT for ESPN-style ids that never equal their lane key', 
   expect(m).toContain('BAL · OUT');
   expect(count('right:-8px')).toBe(1);
   expect(count('grayscale(.85)')).toBe(1);
+});
+
+function stubStore(items: Record<string, string> = {}): Record<string, string> {
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (k: string) => (k in items ? items[k] : null),
+      setItem: (k: string, v: string) => {
+        items[k] = v;
+      },
+    },
+  });
+  return items;
+}
+
+function clearStore(): void {
+  Reflect.deleteProperty(globalThis, 'localStorage');
+}
+
+it('defaults sound to on with an empty store', async () => {
+  const { readSoundPref } = await import('./MatchupPage');
+  stubStore();
+
+  expect(readSoundPref()).toBe(true);
+  clearStore();
+});
+
+it('remembers a viewer who turned sound off', async () => {
+  const { readSoundPref, saveSoundPref, SOUND_KEY } = await import('./MatchupPage');
+  const store = stubStore();
+
+  saveSoundPref(false);
+
+  expect(store[SOUND_KEY]).toBe('off');
+  expect(readSoundPref()).toBe(false);
+  clearStore();
+});
+
+it('remembers a viewer who left sound on', async () => {
+  const { readSoundPref, saveSoundPref, SOUND_KEY } = await import('./MatchupPage');
+  const store = stubStore();
+
+  saveSoundPref(true);
+
+  expect(store[SOUND_KEY]).toBe('on');
+  expect(readSoundPref()).toBe(true);
+  clearStore();
+});
+
+it('defaults sound to on when localStorage throws', async () => {
+  const { readSoundPref } = await import('./MatchupPage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+      setItem: () => {},
+    },
+  });
+
+  expect(readSoundPref()).toBe(true);
+  clearStore();
 });
