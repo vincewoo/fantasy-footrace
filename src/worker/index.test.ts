@@ -195,3 +195,99 @@ describe('worker', () => {
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
   });
 });
+
+describe('talk route', () => {
+  const TALK = 'https://w.example/talk/2026/3/14?team=1';
+  const HAND = {
+    Origin: 'https://ff.example',
+    Upgrade: 'websocket',
+    'Sec-WebSocket-Protocol': 'footrace, key.aHVudGVyMg',
+  };
+
+  function talk(headers: Record<string, string>, url = TALK): Request {
+    return new Request(url, { method: 'GET', headers });
+  }
+
+  function talkEnv(overrides: Partial<WorkerEnv> = {}): { env: WorkerEnv; names: string[]; stub: Response } {
+    const names: string[] = [];
+    const stub = new Response('talk-stub', { status: 200 });
+    const namespace = {
+      idFromName: (name: string) => {
+        names.push(name);
+        return name;
+      },
+      get: () => ({ fetch: async () => stub }),
+    };
+
+    return { env: { ...env, TALK: namespace, ...overrides }, names, stub };
+  }
+
+  it('joins the room for the matchup and returns the room response', async () => {
+    const { env: talkEnvValue, names, stub } = talkEnv();
+    const { calls, fetchImpl } = spyFetch();
+
+    const response = await handle(talk(HAND), talkEnvValue, fetchImpl);
+
+    expect(names).toEqual(['918355353:2026:3:14']);
+    expect(response).toBe(stub);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rejects a wrong talk key', async () => {
+    const { env: talkEnvValue, names } = talkEnv();
+    const { fetchImpl } = spyFetch();
+    const response = await handle(
+      talk({ ...HAND, 'Sec-WebSocket-Protocol': 'footrace, key.bm9wZQ' }),
+      talkEnvValue,
+      fetchImpl,
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_KEY' });
+    expect(names).toHaveLength(0);
+  });
+
+  it('requires the allowed origin for talk', async () => {
+    const { env: talkEnvValue } = talkEnv();
+    const { fetchImpl } = spyFetch();
+    const response = await handle(
+      talk({ Upgrade: 'websocket', 'Sec-WebSocket-Protocol': 'footrace, key.aHVudGVyMg' }),
+      talkEnvValue,
+      fetchImpl,
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_ORIGIN' });
+  });
+
+  it('requires an upgrade for talk', async () => {
+    const { env: talkEnvValue } = talkEnv();
+    const { fetchImpl } = spyFetch();
+    const response = await handle(
+      talk({ Origin: 'https://ff.example', 'Sec-WebSocket-Protocol': 'footrace, key.aHVudGVyMg' }),
+      talkEnvValue,
+      fetchImpl,
+    );
+
+    expect(response.status).toBe(426);
+  });
+
+  it('rejects a talk path it cannot parse', async () => {
+    const { env: talkEnvValue, names } = talkEnv();
+    const { fetchImpl } = spyFetch();
+    const response = await handle(talk(HAND, 'https://w.example/talk/2026/3/14/x?team=1'), talkEnvValue, fetchImpl);
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_PATH' });
+    expect(names).toHaveLength(0);
+  });
+
+  it('reports a missing talk binding', async () => {
+    const { env: talkEnvValue } = talkEnv({ TALK: undefined });
+    const { fetchImpl } = spyFetch();
+    const response = await handle(talk(HAND), talkEnvValue, fetchImpl);
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_CONFIG' });
+  });
+});

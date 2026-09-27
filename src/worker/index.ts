@@ -1,4 +1,7 @@
 import { cookieHeader, ESPN_HOST, isAllowedPath } from '../espn/proxy';
+import { keyFromProtocols, parseTalkPath } from './talk';
+
+export { TalkRoom } from './talk';
 
 export interface WorkerEnv {
   ESPN_S2?: string;
@@ -6,6 +9,7 @@ export interface WorkerEnv {
   ALLOWED_ORIGIN?: string;
   PASSPHRASE?: string;
   LEAGUE_ID?: string;
+  TALK?: { idFromName(name: string): unknown; get(id: unknown): { fetch(r: Request): Promise<Response> } };
 }
 
 function json(type: string, status: number, headers: Record<string, string>): Response {
@@ -38,6 +42,28 @@ async function keyMatches(given: string | null, passphrase: string): Promise<boo
   return diff === 0;
 }
 
+async function talkRoute(request: Request, env: WorkerEnv, url: URL): Promise<Response> {
+  if (request.headers.get('Origin') !== env.ALLOWED_ORIGIN) return json('FOOTRACE_ORIGIN', 403, {});
+
+  const upgrade = request.headers.get('Upgrade');
+  if (upgrade === null || upgrade.toLowerCase() !== 'websocket') return json('FOOTRACE_UPGRADE', 426, {});
+
+  const passphrase = env.PASSPHRASE;
+  if (!passphrase) return json('FOOTRACE_CONFIG', 500, {});
+
+  const key = keyFromProtocols(request.headers.get('Sec-WebSocket-Protocol'));
+  if (!(await keyMatches(key, passphrase))) return json('FOOTRACE_KEY', 403, {});
+
+  const path = parseTalkPath(url);
+  if (path === null) return json('FOOTRACE_PATH', 404, {});
+
+  const talk = env.TALK;
+  if (!talk) return json('FOOTRACE_CONFIG', 500, {});
+
+  const league = env.LEAGUE_ID ?? '918355353';
+  return talk.get(talk.idFromName(`${league}:${path.season}:${path.week}:${path.matchupId}`)).fetch(request);
+}
+
 export async function handle(
   request: Request,
   env: WorkerEnv,
@@ -49,6 +75,10 @@ export async function handle(
   const cors = corsHeaders(sameOrigin, allowed);
 
   if (origin !== null && !sameOrigin) return json('FOOTRACE_ORIGIN', 403, {});
+
+  const url = new URL(request.url);
+  if (url.pathname.startsWith('/talk/')) return talkRoute(request, env, url);
+
   if (request.method === 'OPTIONS' && sameOrigin) return new Response(null, { status: 204, headers: cors });
   if (request.method !== 'GET') return json('FOOTRACE_METHOD', 405, cors);
 
@@ -60,7 +90,6 @@ export async function handle(
     return json('FOOTRACE_KEY', 403, cors);
   }
 
-  const url = new URL(request.url);
   const path = url.pathname + url.search;
   const league = Number(env.LEAGUE_ID ?? '918355353');
   if (!isAllowedPath(path, league)) return json('FOOTRACE_PATH', 404, cors);
