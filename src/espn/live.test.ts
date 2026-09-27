@@ -5,16 +5,20 @@ import { describe, expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import type { EventKind, PlayEvent, Pos, Slate } from '../model/types';
 import { buildSlate } from './slate';
+import { scoresAgainst } from './summary';
 import { buildTimeline } from './timeline';
 import {
   actualOf,
   decompose,
   describeAdjust,
   describeLive,
+  dstTiers,
   eventsFromPoll,
   readPoll,
+  tierPoints,
   withEvents,
   type Actual,
+  type DstHistory,
   type Piece,
 } from './live';
 
@@ -23,6 +27,8 @@ const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtu
 
 const league = fixture('week3-pregame.json');
 const season = fixture('season-2026-proteams.json');
+const liveMatchup = fixture('matchup-week3-live-1047.json');
+const summaryFixture = fixture('summary-401872950-live.json');
 const TZ = 'America/New_York';
 const WEEK = 3;
 const NOW_MS = 1790528400000;
@@ -525,5 +531,278 @@ describe('eventsFromPoll for the defense feed', () => {
     expect(sack[0].text.startsWith('Bengals D/ST ')).toBe(true);
     expect(ruledOut).toHaveLength(1);
     expect(ruledOut[0]).toMatchObject({ kind: 'injury', text: 'Bengals D/ST ruled OUT' });
+  });
+});
+
+const tiersOf = (): DstHistory['tiers'] => dstTiers(league.settings.scoringSettings.scoringItems);
+const liveTiers = tiersOf();
+const CIN = 4;
+const LIVE_NOW = 1790531264000;
+
+const liveToT = (week: number, ms: number): number => buildTimeline(kickoffsOf(week), TZ).toT(ms);
+
+const bengalsActual = (playerId: string): Actual => {
+  const player = liveMatchup.schedule
+    .flatMap((m: any) => [m.home, m.away])
+    .flatMap((side: any) => side.rosterForCurrentScoringPeriod.entries)
+    .map((e: any) => e.playerPoolEntry.player)
+    .find((p: any) => String(p.id) === playerId);
+  return actualOf(player, WEEK)!;
+};
+
+const historyOf = (proTeamId: number): DstHistory => ({
+  tiers: liveTiers,
+  ...scoresAgainst(summaryFixture, proTeamId),
+});
+
+describe('dstTiers and tierPoints', () => {
+  const { pa, ya } = liveTiers;
+
+  it('reads the points-allowed tiers from the league’s D/ST overrides', () => {
+    expect(tierPoints(pa, 0)).toBe(5);
+    expect(tierPoints(pa, 6)).toBe(4);
+    expect(tierPoints(pa, 7)).toBe(3);
+    expect(tierPoints(pa, 13)).toBe(3);
+    expect(tierPoints(pa, 14)).toBe(1);
+    expect(tierPoints(pa, 18)).toBe(0);
+    expect(tierPoints(pa, 28)).toBe(-1);
+    expect(tierPoints(pa, 35)).toBe(-3);
+    expect(tierPoints(pa, 46)).toBe(-5);
+    expect(tierPoints(pa, 99)).toBe(-5);
+  });
+
+  it('reads the yards-allowed tiers the same way', () => {
+    expect(tierPoints(ya, 0)).toBe(5);
+    expect(tierPoints(ya, 13)).toBe(5);
+    expect(tierPoints(ya, 99)).toBe(5);
+    expect(tierPoints(ya, 100)).toBe(3);
+    expect(tierPoints(ya, 159)).toBe(3);
+    expect(tierPoints(ya, 250)).toBe(2);
+    expect(tierPoints(ya, 320)).toBe(0);
+    expect(tierPoints(ya, 420)).toBe(-3);
+    expect(tierPoints(ya, 460)).toBe(-5);
+    expect(tierPoints(ya, 520)).toBe(0);
+    expect(tierPoints(ya, 700)).toBe(0);
+  });
+
+  it('prefers the D/ST override over the flat points', () => {
+    expect(dstTiers([{ statId: 89, points: 0, pointsOverrides: { '16': 6 } }]).pa[0].pts).toBe(6);
+    expect(dstTiers([{ statId: 128, points: 4 }]).ya[0].pts).toBe(4);
+  });
+
+  it('counts a tier the league never scored as zero', () => {
+    expect(dstTiers([]).pa).toHaveLength(9);
+    expect(dstTiers([]).ya).toHaveLength(9);
+    expect(tierPoints(dstTiers([]).pa, 0)).toBe(0);
+    expect(tierPoints(dstTiers([]).ya, 150)).toBe(0);
+    expect(tierPoints(dstTiers([{ statId: 128, points: 5 }]).pa, 0)).toBe(0);
+  });
+});
+
+describe('actualOf for a live defense', () => {
+  it('carries the game id and pro team the summary needs', () => {
+    const bengals = bengalsActual('-16004');
+
+    expect(bengals.total).toBe(4);
+    expect(bengals.stats['120']).toBe(14);
+    expect(bengals.stats['127']).toBe(159);
+    expect(bengals.applied['92']).toBe(1);
+    expect(bengals.eventId).toBe('401872950');
+    expect(bengals.proTeamId).toBe(CIN);
+  });
+
+  it('leaves the game id out of an actual with no game entry', () => {
+    expect(actualOf({ stats: [{ statSourceId: 0, statSplitTypeId: 1, scoringPeriodId: WEEK, appliedTotal: 1, stats: {} }] }, WEEK))
+      .toEqual({ total: 1, stats: {}, applied: {} });
+  });
+});
+
+describe('eventsFromPoll for a D/ST with a points-allowed history', () => {
+  const slot = (over: any): any => ({
+    id: over.id,
+    name: over.name,
+    last: over.last ?? 'D/ST',
+    pos: over.pos ?? 'DST',
+    team: 'CIN',
+    num: 1,
+    proj: 0,
+    skin: 0,
+    hair: 'helmet',
+    window: [0.2, 0.5],
+  });
+  const slateOfDst = (lanes: any[]): Slate => ({
+    me: { name: 'Me', owner: 'YOU' },
+    opp: { name: 'Opp', owner: 'THEM' },
+    lanes,
+    events: [],
+    teamColors: {},
+    axis: [],
+    clockLabel: () => '',
+    statusLabel: () => '',
+  }) as Slate;
+  const dstSlate = slateOfDst([
+    { slot: 'D/ST', me: slot({ id: '-16004', name: 'Bengals D/ST' }), opp: slot({ id: '-16019', name: 'Giants D/ST', team: 'NYG' }) },
+  ]);
+  const T_NOW = 0.3;
+  const t6 = (e: { t: number }): number => Number(e.t.toFixed(6));
+  const shown = (events: PlayEvent[]): string[] =>
+    events.map(e => `${t6(e)} ${e.pts} ${e.text}`);
+
+  const history = historyOf(CIN);
+
+  it('rebuilds the tier start, the scores allowed and the yards remainder', () => {
+    const cur = {
+      actuals: {
+        '-16004': {
+          total: 4,
+          stats: { '120': 14, '127': 159 },
+          applied: { '92': 1, '129': 3 },
+        },
+      },
+      out: [],
+    };
+
+    const events = eventsFromPoll(dstSlate, null, cur, T_NOW, 1, { '-16004': history });
+
+    expect(shown(events)).toEqual([
+      '0.2 10 Bengals D/ST take the field',
+      '0.210309 -2 Bengals D/ST allow a score (7 allowed)',
+      '0.279475 -2 Bengals D/ST allow a score (14 allowed)',
+      '0.3 -2 Bengals D/ST give up yards',
+    ]);
+    expect(events.every(e => e.kind === 'rush')).toBe(true);
+    expect(events.every(e => e.yds === 0)).toBe(true);
+    expect(sumOf(events.map(e => ({ kind: e.kind, yds: e.yds, pts: e.pts })))).toBe(4);
+    expect(events.map(e => e.id)).toEqual([1, 2, 3, 4]);
+    expect(events.every(e => e.side === 'me' && e.lane === 0)).toBe(true);
+  });
+
+  it('keeps the scores it allowed and spreads its own plays between them', () => {
+    const cur = {
+      actuals: {
+        '-16004': {
+          total: 4,
+          stats: { '120': 14, '127': 159, '96': 1 },
+          applied: { '92': 1, '129': 3, '96': 2 },
+        },
+      },
+      out: [],
+    };
+
+    const events = eventsFromPoll(dstSlate, null, cur, T_NOW, 1, { '-16004': history });
+
+    expect(shown(events)).toEqual([
+      '0.2 10 Bengals D/ST take the field',
+      '0.210309 -2 Bengals D/ST allow a score (7 allowed)',
+      '0.25 2 Bengals D/ST recover a fumble',
+      '0.279475 -2 Bengals D/ST allow a score (14 allowed)',
+      '0.3 -4 Bengals D/ST give up yards',
+    ]);
+    expect(sumOf(events.map(e => ({ kind: e.kind, yds: e.yds, pts: e.pts })))).toBe(4);
+  });
+
+  it('reports a score that did not move the tier as a zero-point play', () => {
+    const flat = {
+      tiers: liveTiers,
+      plays: [{ g: 110 / 3600, pa: 7 }, { g: 848 / 3600, pa: 14 }, { g: 0.25, pa: 15 }],
+      gNow: 0.296389,
+    };
+    const cur = {
+      actuals: { '-16004': { total: 1, stats: { '120': 15, '127': 159 }, applied: { '92': 1, '129': 3 } } },
+      out: [],
+    };
+
+    const events = eventsFromPoll(dstSlate, null, cur, T_NOW, 1, { '-16004': flat });
+
+    expect(shown(events)).toEqual([
+      '0.2 10 Bengals D/ST take the field',
+      '0.210309 -2 Bengals D/ST allow a score (7 allowed)',
+      '0.279475 -2 Bengals D/ST allow a score (14 allowed)',
+      '0.284349 0 Bengals D/ST allow a score (15 allowed)',
+      '0.3 -5 Bengals D/ST give up yards',
+    ]);
+    expect(sumOf(events.map(e => ({ kind: e.kind, yds: e.yds, pts: e.pts })))).toBe(1);
+  });
+
+  it('caps a play the game finished after the timeline at the current time', () => {
+    const late = { tiers: liveTiers, plays: [{ g: 1, pa: 20 }], gNow: 0.5 };
+    const cur = {
+      actuals: { '-16004': { total: 0, stats: { '120': 20, '127': 159 }, applied: { '121': 0, '129': 3 } } },
+      out: [],
+    };
+
+    const events = eventsFromPoll(dstSlate, null, cur, T_NOW, 1, { '-16004': late });
+
+    expect(shown(events)).toEqual([
+      '0.2 10 Bengals D/ST take the field',
+      '0.3 -5 Bengals D/ST allow a score (20 allowed)',
+      '0.3 -5 Bengals D/ST give up yards',
+    ]);
+    expect(events[events.length - 1].t).toBe(0.3);
+  });
+
+  it('seeds the kickoff alone for a defense that has not scored yet', () => {
+    const scoreless = { tiers: liveTiers, plays: [], gNow: 0.296389 };
+    const cur = {
+      actuals: { '-16004': { total: 10, stats: { '120': 0, '127': 40 }, applied: { '89': 5, '128': 5 } } },
+      out: [],
+    };
+
+    const events = eventsFromPoll(dstSlate, null, cur, T_NOW, 1, { '-16004': scoreless });
+
+    expect(shown(events)).toEqual(['0.2 10 Bengals D/ST take the field']);
+  });
+
+  it('leaves today’s behavior alone without a history entry', () => {
+    const cur = {
+      actuals: { '-16004': { total: 4, stats: { '120': 14, '127': 159 }, applied: { '92': 1, '129': 3 } } },
+      out: [],
+    };
+
+    expect(shown(eventsFromPoll(dstSlate, null, cur, T_NOW, 1))).toEqual([
+      '0.25 4 Bengals D/ST tighten up',
+    ]);
+  });
+
+  it('ignores the history for every poll after the first', () => {
+    const cur = {
+      actuals: { '-16004': { total: 4, stats: { '120': 14, '127': 159 }, applied: { '92': 1, '129': 3 } } },
+      out: [],
+    };
+    const events = eventsFromPoll(dstSlate, null, cur, T_NOW, 1, { '-16004': history });
+
+    const next = {
+      actuals: { '-16004': { total: 7, stats: { '120': 14, '127': 159, '99': 1 }, applied: { '92': 1, '129': 3, '99': 1 } } },
+      out: [],
+    };
+    const added = eventsFromPoll(dstSlate, cur, next, T_NOW, 5, { '-16004': history });
+
+    expect(added).toHaveLength(2);
+    expect(added.map(e => [e.id, e.kind, e.pts])).toEqual([[5, 'sack', 1], [6, 'rush', 2]]);
+    expect(added.every(e => e.t > T_NOW)).toBe(true);
+    expect(events).toHaveLength(4);
+  });
+
+  it('uses the real game clock of the live capture to place the scores', () => {
+    const toT = buildTimeline(kickoffsOf(WEEK), TZ).toT;
+    const w0 = toT(1790528400000);
+    const tNow = liveToT(WEEK, LIVE_NOW);
+    const game = slot({ id: '-16004', name: 'Bengals D/ST' });
+    game.window = [w0, toT(1790528400000 + 3.5 * 60 * 60 * 1000)];
+    const slate = slateOfDst([{ slot: 'D/ST', me: slot({ id: '-16019', name: 'Giants D/ST', team: 'NYG' }), opp: game }]);
+    const cur = {
+      actuals: { '-16004': { total: 4, stats: { '120': 14, '127': 159 }, applied: { '92': 1, '129': 3 } } },
+      out: [],
+    };
+
+    const events = eventsFromPoll(slate, null, cur, tNow, 1, { '-16004': history });
+
+    expect(shown(events)).toEqual([
+      '0.200957 10 Bengals D/ST take the field',
+      '0.205666 -2 Bengals D/ST allow a score (7 allowed)',
+      '0.237259 -2 Bengals D/ST allow a score (14 allowed)',
+      '0.246635 -2 Bengals D/ST give up yards',
+    ]);
+    expect(events.every(e => e.side === 'opp')).toBe(true);
   });
 });

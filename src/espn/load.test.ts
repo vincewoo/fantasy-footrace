@@ -5,6 +5,7 @@ import { expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import { LEAGUE_ID, SEASON } from './client';
 import { loadLeagueInfo, loadLiveSlate, pollLive } from './load';
+import { summaryUrl } from './summary';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtures', name), 'utf8'));
@@ -200,4 +201,116 @@ it('turns the points scored since the last poll into events at the current time'
   expect(next.slate.events.slice(0, 21)).toEqual(live.slate.events);
   expect(next.poll.actuals['4036378'].total).toBe(19.68);
   expect(fmt(snapshotAt(next.slate, tNow + 1e-5).totals.me)).toBe('42.8');
+});
+
+const liveMatchup = fixture('matchup-week3-live-1047.json');
+const summaryFixture = fixture('summary-401872950-live.json');
+const LIVE_NOW = 1790531264000;
+const BENGALS = '-16004';
+
+function liveFetch(summary: 'ok' | 'fail'): { calls: Call[]; fetchImpl: typeof fetch } {
+  const calls: Call[] = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (url.includes('view=mSettings')) return fakeResponse(league);
+    if (url.includes('site.api.espn.com')) {
+      if (summary === 'fail' || !url.includes('event=401872950')) {
+        return { ok: false, status: 404, json: async () => ({}) } as unknown as Response;
+      }
+      return fakeResponse(summaryFixture);
+    }
+    if (url.includes('/leagues/')) {
+      return fakeResponse(url.includes('view=mMatchupScore') ? liveMatchup : { schedule: league.schedule });
+    }
+    return fakeResponse(fixture('season-2026-proteams.json'));
+  };
+  return { calls, fetchImpl };
+}
+
+const laneOfDst = (result: Awaited<ReturnType<typeof loadLiveSlate>>): number =>
+  result.slate.lanes.findIndex(lane => lane.opp.name === 'Bengals D/ST');
+
+const shown = (events: { t: number; pts: number; text: string }[]): string[] =>
+  events.map(e => `${Number(e.t.toFixed(6))} ${e.pts} ${e.text}`);
+
+it('rebuilds a D/ST’s scores allowed from the NFL game summary on load', async () => {
+  const { calls, fetchImpl } = liveFetch('ok');
+  const info = await loadLeagueInfo({ fetchImpl });
+
+  const result = await loadLiveSlate(info, 1, { timeZone: TZ, fetchImpl, now: LIVE_NOW });
+  const lane = laneOfDst(result);
+  const def = result.slate.events.filter(e => e.lane === lane && e.side === 'opp');
+
+  expect(lane).toBe(8);
+  expect(shown(def)).toEqual([
+    '0.200957 10 Bengals D/ST take the field',
+    '0.205666 -2 Bengals D/ST allow a score (7 allowed)',
+    '0.237259 -2 Bengals D/ST allow a score (14 allowed)',
+    '0.246635 -2 Bengals D/ST give up yards',
+  ]);
+  expect(def.every(e => e.kind === 'rush')).toBe(true);
+  expect(def.reduce((total, e) => total + e.pts, 0)).toBe(4);
+  expect(result.poll.actuals[BENGALS].total).toBe(4);
+
+  expect(calls.some(c => c.url === summaryUrl('401872950'))).toBe(true);
+});
+
+it('fetches the summary of every D/ST in the matchup in parallel', async () => {
+  const { calls, fetchImpl } = liveFetch('ok');
+  const info = await loadLeagueInfo({ fetchImpl });
+
+  const result = await loadLiveSlate(info, 1, { timeZone: TZ, fetchImpl, now: LIVE_NOW });
+  const urls = calls.filter(c => c.url.includes('site.api.espn.com')).map(c => c.url);
+  const firstSummary = calls.findIndex(c => c.url.includes('site.api.espn.com'));
+
+  expect(urls).toEqual([summaryUrl('401872950'), summaryUrl('401872956')]);
+  expect(firstSummary).toBe(3);
+
+  const giants = result.slate.events.filter(e => e.lane === 8 && e.side === 'me');
+  expect(shown(giants)).toEqual([
+    '0.216183 2 Giants D/ST recover a fumble',
+    '0.231409 10 Giants D/ST tighten up',
+  ]);
+});
+
+it('falls back to one adjustment event for a D/ST whose summary fails', async () => {
+  const { fetchImpl } = liveFetch('fail');
+  const info = await loadLeagueInfo({ fetchImpl });
+
+  const result = await loadLiveSlate(info, 1, { timeZone: TZ, fetchImpl, now: LIVE_NOW });
+  const def = result.slate.events.filter(e => e.lane === laneOfDst(result) && e.side === 'opp');
+
+  expect(shown(def)).toEqual(['0.223796 4 Bengals D/ST tighten up']);
+});
+
+it('keeps later polls on the D/ST’s own schedule', async () => {
+  const { fetchImpl } = liveFetch('ok');
+  const info = await loadLeagueInfo({ fetchImpl });
+  const live = await loadLiveSlate(info, 1, { timeZone: TZ, fetchImpl, now: LIVE_NOW });
+
+  const schedule = JSON.parse(JSON.stringify(liveMatchup.schedule));
+  for (const side of ['home', 'away']) {
+    for (const match of schedule) {
+      const entry = match[side].rosterForCurrentScoringPeriod.entries
+        .find((e: any) => String(e.playerPoolEntry.player.id) === BENGALS);
+      if (!entry) continue;
+      const actual = entry.playerPoolEntry.player.stats.find(
+        (s: any) => s.statSourceId === 0 && s.statSplitTypeId === 1 && s.scoringPeriodId === 3,
+      );
+      actual.stats['99'] = 1;
+      actual.appliedStats['99'] = 1;
+      actual.appliedTotal = 5;
+    }
+  }
+  const { calls, fetchImpl: pollFetch } = matchupFetch(schedule);
+
+  const next = await pollLive(info, live, { fetchImpl: pollFetch, now: LIVE_NOW });
+  const added = next.slate.events.filter(e => !live.slate.events.includes(e));
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0].url).not.toContain('site.api.espn.com');
+  expect(added).toHaveLength(1);
+  expect(added[0]).toMatchObject({ lane: 8, side: 'opp', kind: 'sack', pts: 1 });
+  expect(added[0].t).toBeGreaterThan(live.toT(LIVE_NOW));
 });

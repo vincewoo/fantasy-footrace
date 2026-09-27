@@ -1,7 +1,15 @@
 import type { Slate } from '../model/types';
 import { fetchLeague, fetchSeason, SEASON } from './client';
-import { eventsFromPoll, readPoll, withEvents, type PollState } from './live';
-import { buildSlate, listTeams, proTeamsOf, type LeagueTeam } from './slate';
+import {
+  dstTiers,
+  eventsFromPoll,
+  readPoll,
+  withEvents,
+  type DstHistory,
+  type PollState,
+} from './live';
+import { buildSlate, listTeams, posOf, proTeamsOf, type LeagueTeam } from './slate';
+import { fetchSummary, scoresAgainst } from './summary';
 import { buildTimeline } from './timeline';
 
 export interface LeagueInfo {
@@ -59,6 +67,50 @@ function scheduleOf(matchup: unknown): ScheduleEntry[] {
   return ((matchup as { schedule?: ScheduleEntry[] } | null)?.schedule ?? []) as ScheduleEntry[];
 }
 
+function dstStarters(entry: ScheduleEntry, cur: PollState): { id: string; eventId: string; proTeamId: number }[] {
+  const found: { id: string; eventId: string; proTeamId: number }[] = [];
+  for (const side of [entry.home, entry.away]) {
+    const entries = (side as any).rosterForCurrentScoringPeriod?.entries ?? [];
+    for (const rosterEntry of entries) {
+      if (rosterEntry?.lineupSlotId === 20 || rosterEntry?.lineupSlotId === 21) continue;
+      const player = rosterEntry?.playerPoolEntry?.player;
+      const id = String(player?.id);
+      const actual = cur.actuals[id];
+      if (!actual?.eventId || !Number.isFinite(Number(actual.proTeamId))) continue;
+      if (posOf(Number(player?.defaultPositionId)) !== 'DST') continue;
+      found.push({ id, eventId: actual.eventId, proTeamId: Number(actual.proTeamId) });
+    }
+  }
+  return found;
+}
+
+async function dstHistoryOf(
+  entry: ScheduleEntry,
+  info: LeagueInfo,
+  cur: PollState,
+  fetchImpl?: typeof fetch,
+): Promise<Record<string, DstHistory>> {
+  const tiers = dstTiers(info.raw?.settings?.scoringSettings?.scoringItems ?? []);
+  const starters = dstStarters(entry, cur);
+
+  const settled = await Promise.all(
+    starters.map(async starter => {
+      try {
+        const summary = await fetchSummary(starter.eventId, { fetchImpl });
+        return { starter, history: { tiers, ...scoresAgainst(summary, starter.proTeamId) } };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  const history: Record<string, DstHistory> = {};
+  for (const result of settled) {
+    if (result) history[result.starter.id] = result.history;
+  }
+  return history;
+}
+
 export async function loadLiveSlate(
   info: LeagueInfo,
   myTeamId: number,
@@ -84,7 +136,15 @@ export async function loadLiveSlate(
 
   const timeline = buildTimeline(weekKickoffs(season, info.week), opts.timeZone);
   const cur = readPoll(schedule, myTeamId, info.week);
-  const seed = eventsFromPoll(slate, null, cur, timeline.toT(opts.now ?? Date.now()), 1);
+  const history = await dstHistoryOf(entry, info, cur, opts.fetchImpl);
+  const seed = eventsFromPoll(
+    slate,
+    null,
+    cur,
+    timeline.toT(opts.now ?? Date.now()),
+    1,
+    history,
+  );
 
   return {
     slate: withEvents(slate, seed),

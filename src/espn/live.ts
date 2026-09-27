@@ -1,9 +1,12 @@
 import type { EventKind, PlayEvent, Pos, Side, Slate } from '../model/types';
+import type { ScoreAgainst } from './summary';
 
 export interface Actual {
   total: number;
   stats: Record<string, number>;
   applied: Record<string, number>;
+  proTeamId?: number;
+  eventId?: string;
 }
 
 export interface Piece {
@@ -38,6 +41,11 @@ function copyNums(source: unknown): Record<string, number> {
   return out;
 }
 
+function eventIdOf(id: unknown): string | undefined {
+  const raw = String(id ?? '');
+  return /^01\d+$/.test(raw) ? raw.slice(2) : undefined;
+}
+
 export function actualOf(player: any, week: number): Actual | null {
   const stats: any[] | undefined = player?.stats;
   if (!Array.isArray(stats)) return null;
@@ -47,11 +55,18 @@ export function actualOf(player: any, week: number): Actual | null {
   );
   if (!entry) return null;
 
-  return {
+  const actual: Actual = {
     total: round2(Number(entry.appliedTotal) || 0),
     stats: copyNums(entry.stats),
     applied: copyNums(entry.appliedStats),
   };
+
+  const proTeamId = Number(entry.proTeamId);
+  if (Number.isFinite(proTeamId)) actual.proTeamId = proTeamId;
+  const eventId = eventIdOf(entry.id);
+  if (eventId !== undefined) actual.eventId = eventId;
+
+  return actual;
 }
 
 interface StatRule {
@@ -259,7 +274,16 @@ export function readPoll(schedule: any[], myTeamId: number, week: number): PollS
       const player = entryOf?.playerPoolEntry?.player;
       const id = String(player?.id);
       const actual = actualOf(player, week);
-      if (actual) actuals[id] = actual;
+      if (actual) {
+        if (actual.eventId === undefined) {
+          const eventId = eventIdOf(player?.id);
+          if (eventId !== undefined) actual.eventId = eventId;
+        }
+        if (actual.proTeamId === undefined && Number.isFinite(Number(player?.proTeamId))) {
+          actual.proTeamId = Number(player?.proTeamId);
+        }
+        actuals[id] = actual;
+      }
       if (player?.injuryStatus === 'OUT') out.push(id);
     }
   }
@@ -269,16 +293,144 @@ export function readPoll(schedule: any[], myTeamId: number, week: number): PollS
 
 const SIDES: Side[] = ['me', 'opp'];
 
+export interface DstTier {
+  min: number;
+  max: number;
+  pts: number;
+}
+
+export interface DstTiers {
+  pa: DstTier[];
+  ya: DstTier[];
+}
+
+export interface DstHistory {
+  tiers: DstTiers;
+  plays: ScoreAgainst[];
+  gNow: number;
+}
+
+const PA_RANGES: [string, number, number][] = [
+  ['89', 0, 0],
+  ['90', 1, 6],
+  ['91', 7, 13],
+  ['92', 14, 17],
+  ['121', 18, 21],
+  ['122', 22, 27],
+  ['123', 28, 34],
+  ['124', 35, 45],
+  ['125', 46, Infinity],
+];
+
+const YA_RANGES: [string, number, number][] = [
+  ['128', 0, 99],
+  ['129', 100, 199],
+  ['130', 200, 299],
+  ['131', 300, 349],
+  ['132', 350, 399],
+  ['133', 400, 449],
+  ['134', 450, 499],
+  ['135', 500, 549],
+  ['136', 550, Infinity],
+];
+
+function tierPointsOf(stat: string, min: number, max: number, pointsByStat: Record<string, number>): DstTier {
+  return { min, max, pts: pointsByStat[stat] ?? 0 };
+}
+
+function pointsByStat(scoringItems: any[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of scoringItems ?? []) {
+    const id = String(item?.statId);
+    const override = item?.pointsOverrides?.['16'];
+    const pts = typeof override === 'number' ? override : Number(item?.points);
+    if (Number.isFinite(pts)) out[id] = pts;
+  }
+  return out;
+}
+
+export function dstTiers(scoringItems: any[]): DstTiers {
+  const points = pointsByStat(scoringItems ?? []);
+  return {
+    pa: PA_RANGES.map(([stat, min, max]) => tierPointsOf(stat, min, max, points)),
+    ya: YA_RANGES.map(([stat, min, max]) => tierPointsOf(stat, min, max, points)),
+  };
+}
+
+export function tierPoints(tiers: DstTier[], value: number): number {
+  const tier = tiers.find(t => value >= t.min && value <= t.max);
+  return tier ? tier.pts : 0;
+}
+
+function dstHistoryEvents(
+  history: DstHistory,
+  name: string,
+  cur: Actual,
+  w0: number,
+  w1: number,
+  tNow: number,
+): { kind: EventKind; yds: number; pts: number; t: number; text: string }[] {
+  const end = Math.min(Math.max(tNow, w0), w1);
+  const events: { kind: EventKind; yds: number; pts: number; t: number; text: string }[] = [{
+    kind: 'rush',
+    yds: 0,
+    pts: round2(tierPoints(history.tiers.pa, 0) + tierPoints(history.tiers.ya, 0)),
+    t: w0,
+    text: `${name} take the field`,
+  }];
+
+  let prevPa = 0;
+  for (const play of history.plays) {
+    const pts = round2(tierPoints(history.tiers.pa, play.pa) - tierPoints(history.tiers.pa, prevPa));
+    prevPa = play.pa;
+    const g = history.gNow > 0 ? play.g / history.gNow : 1;
+    events.push({
+      kind: 'rush',
+      yds: 0,
+      pts,
+      t: Math.min(w0 + g * (end - w0), end),
+      text: `${name} allow a score (${play.pa} allowed)`,
+    });
+  }
+
+  const pieces = decompose('DST', null, cur).filter(piece => piece.adjust === undefined);
+  const n = pieces.length;
+  pieces.forEach((piece, j) => {
+    events.push({
+      kind: piece.kind,
+      yds: piece.yds,
+      pts: piece.pts,
+      t: w0 + ((j + 1) / (n + 1)) * (end - w0),
+      text: describeLive(piece.kind, name, piece.yds),
+    });
+  });
+
+  const sum = events.reduce((total, event) => total + event.pts, 0);
+  const rem = round2(cur.total - sum);
+  if (Math.abs(rem) >= 0.005) {
+    events.push({
+      kind: 'rush',
+      yds: 0,
+      pts: rem,
+      t: end,
+      text: rem < 0 ? `${name} give up yards` : `${name} tighten up`,
+    });
+  }
+
+  return events;
+}
+
 export function eventsFromPoll(
   slate: Slate,
   prev: PollState | null,
   cur: PollState,
   tNow: number,
   firstId: number,
+  history?: Record<string, DstHistory>,
 ): PlayEvent[] {
   const draft: {
     t: number; side: Side; lane: number; kind: EventKind; yds: number; pts: number;
-    name: string; pos: Pos; adjust?: true;
+    name: string; pos: Pos; text?: string; adjust?: true;
   }[] = [];
 
   slate.lanes.forEach((lane, i) => {
@@ -299,6 +451,14 @@ export function eventsFromPoll(
 
       const actual = cur.actuals[id];
       if (!actual) continue;
+
+      const dstHistory = player.pos === 'DST' && first ? history?.[id] : undefined;
+      if (dstHistory) {
+        for (const event of dstHistoryEvents(dstHistory, name, actual, w0, w1, tNow)) {
+          draft.push({ ...event, side, lane: i, name, pos: player.pos });
+        }
+        continue;
+      }
 
       const pieces = decompose(player.pos, first ? null : prev!.actuals[id], actual);
       if (pieces.length === 0) continue;
@@ -323,7 +483,7 @@ export function eventsFromPoll(
     kind: e.kind,
     yds: e.yds,
     pts: e.pts,
-    text: e.adjust ? describeAdjust(e.pos, e.name, e.pts) : describeLive(e.kind, e.name, e.yds),
+    text: e.text ?? (e.adjust ? describeAdjust(e.pos, e.name, e.pts) : describeLive(e.kind, e.name, e.yds)),
   }));
 }
 
