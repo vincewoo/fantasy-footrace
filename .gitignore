@@ -4,3 +4,10 @@
 node_modules/
 dist/
 .env*.local
+
+# Vite dependency cache
+.vite/
+
+# Command Code: settings + hooks are shared; taste learning is per-machine
+.commandcode/taste/
+.commandcode/settings.local.json
