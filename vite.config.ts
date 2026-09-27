@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     test: {
       environment: 'node',
+      include: ['src/**/*.test.{ts,tsx}'],
     },
     server: {
       proxy: {
