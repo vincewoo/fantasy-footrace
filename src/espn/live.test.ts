@@ -116,18 +116,21 @@ describe('decompose', () => {
 
     expect(shown(pieces)).toBe(
       [
-        'catch 15 1.79', 'catch 15 1.79', 'catch 14 1.79', 'recTD 0 6', 'catch 14 1.79',
-        'catch 14 1.79', 'catch 14 1.79', 'catch 14 1.76',
+        'catch 20 2.5', 'catch 20 2.5', 'recTD 0 6', 'catch 20 2.5', 'catch 20 2.5', 'catch 20 2.5',
       ].join(', '),
     );
-    expect(pieces).toHaveLength(8);
+    expect(pieces).toHaveLength(6);
     expect(sumOf(pieces)).toBe(18.5);
   });
 
   it('splits Kraft’s two short catches', () => {
     const pieces = decompose('TE', null, actualNamed('Tucker Kraft'));
 
-    expect(shown(pieces)).toBe('catch 13 2.3, catch 13 2.3');
+    expect(shown(pieces)).toBe(
+      [
+        'catch 7 1.15', 'catch 7 1.15', 'catch 6 1.15', 'catch 6 1.15',
+      ].join(', '),
+    );
     expect(sumOf(pieces)).toBe(4.6);
   });
 
@@ -138,10 +141,10 @@ describe('decompose', () => {
       [
         'rush 25 2.43', 'rush 25 2.43', 'rush 24 2.43', 'rushTD 0 6', 'rush 24 2.43',
         'rush 24 2.43', 'rush 24 2.43', 'rushTD 0 6', 'rush 24 2.43', 'rush 24 2.39',
-        'catch 19 2.9',
+        'catch 10 1.45', 'catch 9 1.45',
       ].join(', '),
     );
-    expect(pieces).toHaveLength(11);
+    expect(pieces).toHaveLength(12);
     expect(sumOf(pieces)).toBe(34.3);
   });
 
@@ -458,9 +461,9 @@ describe('decompose for defense', () => {
     const pieces = decompose('WR', null, { total: 3.3, stats: { '42': 30 }, applied: { '42': 3, '999': 0.3 } });
     const last = pieces[pieces.length - 1];
 
-    expect(pieces).toHaveLength(2);
+    expect(pieces).toHaveLength(1);
     expect(last.kind).toBe('catch');
-    expect(last.pts).toBe(1.8);
+    expect(last.pts).toBe(3.3);
     expect(last.adjust).toBeUndefined();
     expect(pieces.some(p => p.adjust !== undefined)).toBe(false);
     expect(sumOf(pieces)).toBe(3.3);
@@ -521,7 +524,7 @@ describe('decompose for the 11:41 live capture', () => {
 
   it('lands DJ Moore’s solo tackle as its own piece', () => {
     expect(tagged(piecesFor('DJ Moore'))).toEqual([
-      'catch 13 1.97', 'rush 0 0.75 tackle', 'catch 13 1.97', 'catch 13 1.96',
+      'catch 10 1.48', 'catch 10 1.48', 'rush 0 0.75 tackle', 'catch 10 1.48', 'catch 9 1.46',
     ]);
     expect(sumOf(piecesFor('DJ Moore'))).toBe(6.65);
   });
@@ -1089,5 +1092,24 @@ describe('decompose on a later poll splits yardage by the play count', () => {
       ].join(', '),
     );
     expect(pieces).toHaveLength(11);
+  });
+});
+
+describe('decompose for the first observation splits yardage by the play count', () => {
+  it('reads Deebo’s 80-yard lateral touchdown as one catch', () => {
+    const cur: Actual = {
+      total: 14.3,
+      stats: { '42': 80, '43': 1, '23': 1, '24': 3 },
+      applied: { '42': 8, '43': 6, '24': 0.3 },
+    };
+    const pieces = decompose('WR', null, cur);
+
+    expect(pieces).toEqual([
+      { kind: 'rush', yds: 3, pts: 0.3 },
+      { kind: 'recTD', yds: 0, pts: 6 },
+      { kind: 'catch', yds: 80, pts: 8 },
+    ]);
+    expect(pieces.filter(p => p.kind === 'catch' && p.yds === 80)).toHaveLength(1);
+    expect(sumOf(pieces)).toBe(14.3);
   });
 });
