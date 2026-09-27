@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import { snapshotAt } from '../model/derive';
 import { mockSlate } from '../sim/mock';
+import { EspnError } from '../espn/client';
+import { ConnectError, TeamPicker } from './Connect';
 import { MatchupPage } from './MatchupPage';
 
 const HALF = mockSlate('Half PPR');
@@ -60,4 +62,36 @@ it('renders the six taunt buttons and the transport controls', () => {
 
 it('follows the slate through the pure snapshot', () => {
   expect(snapshotAt(HALF, 0.5).past).toHaveLength(102);
+});
+
+it('swaps in the live subtitle and keeps the design one by default', () => {
+  const live = renderToStaticMarkup(<MatchupPage slate={HALF} subtitle="WEEK 3 · #FPANDFRIENDS" />);
+  const demo = renderToStaticMarkup(<MatchupPage slate={HALF} />);
+
+  expect(live).toContain('WEEK 3 · #FPANDFRIENDS');
+  expect(live).not.toContain('BACKYARD LEAGUE');
+  expect(demo).toContain('WEEK 4 · SUNDAY SLATE · BACKYARD LEAGUE');
+});
+
+it('offers every league team on the picker card', () => {
+  const teams = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Team ${i + 1}`, owner: `owner${i + 1}` }));
+
+  const m = renderToStaticMarkup(
+    <TeamPicker teams={teams} leagueName="#fpandfriends" onPick={() => {}} onDemo={() => {}} />,
+  );
+
+  expect(m).toContain('Pick your team');
+  expect(m).toContain('#fpandfriends');
+  for (const team of teams) expect(m).toContain(team.name);
+  expect(m).toContain('Just watch the demo');
+});
+
+it('tells the viewer how to fix a private league', () => {
+  const m = renderToStaticMarkup(
+    <ConnectError error={new EspnError('not visible', 401, 'private')} onRetry={() => {}} onDemo={() => {}} />,
+  );
+
+  expect(m).toContain('.env.local');
+  expect(m).toContain('Retry');
+  expect(m).toContain('Use demo');
 });

@@ -43,3 +43,11 @@ export function goLive(p: Playback): Playback {
 export function scrubTo(p: Playback, f: number): Playback {
   return { ...p, t: Math.min(p.liveT, Math.max(0, Math.min(1, f))) };
 }
+
+export function followLive(p: Playback, liveT: number): Playback {
+  const nextLiveT = Math.max(p.liveT, Math.min(1, Math.max(0, liveT)));
+  if (p.scrubbing) return { ...p, liveT: nextLiveT };
+
+  const t = p.t >= p.liveT - 1e-9 ? nextLiveT : p.t;
+  return { ...p, liveT: nextLiveT, t, playing: nextLiveT >= 1 && t >= 1 ? false : p.playing };
+}

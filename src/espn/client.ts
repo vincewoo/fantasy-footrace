@@ -63,3 +63,42 @@ export async function fetchLeague(
 
   return response.json();
 }
+
+const SEASON_PATH = `/apis/v3/games/ffl/seasons/${SEASON}`;
+
+export function seasonUrl(views: string[], opts: { base?: string } = {}): string {
+  const params = new URLSearchParams();
+  for (const view of views) params.append('view', view);
+
+  return `${opts.base ?? espnBase()}${SEASON_PATH}?${params.toString()}`;
+}
+
+export async function fetchSeason(
+  views: string[],
+  opts: { fetchImpl?: typeof fetch } = {},
+): Promise<unknown> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  const url = seasonUrl(views);
+
+  let response: Response;
+  try {
+    response = await doFetch(url, { method: 'GET', headers: {}, credentials: 'omit' });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new EspnError(`ESPN request to ${url} failed: ${detail}`, 0, 'network');
+  }
+
+  if (response.status === 401) {
+    const body: unknown = await response.json().catch(() => null);
+    const type = (body as { type?: unknown } | null)?.type;
+    if (body === null || type === 'AUTH_LEAGUE_NOT_VISIBLE') {
+      throw new EspnError('ESPN league is not visible without espn_s2/SWID', 401, 'private');
+    }
+  }
+
+  if (!response.ok) {
+    throw new EspnError(`ESPN request to ${url} failed with HTTP ${response.status}`, response.status, 'http');
+  }
+
+  return response.json();
+}

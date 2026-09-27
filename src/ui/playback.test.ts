@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { advance, cycleSpeed, goLive, initPlayback, scrubTo, SPEEDS, togglePlay, type Playback } from './playback';
+import { advance, cycleSpeed, followLive, goLive, initPlayback, scrubTo, SPEEDS, togglePlay, type Playback } from './playback';
 
 const MINUTES = 4;
 const dt = (speed: number) => (0.1 * speed) / (MINUTES * 60);
@@ -69,4 +69,39 @@ it('goes live and scrubs without passing the live edge', () => {
   expect(scrubTo(back, 0.9).t).toBe(0.5);
   expect(scrubTo(back, 0.25).t).toBe(0.25);
   expect(scrubTo(back, -1).t).toBe(0);
+});
+
+it('follows the real clock and drags the playhead with it', () => {
+  const p = followLive({ t: 0.2, liveT: 0.2, speed: 1, playing: true, scrubbing: false }, 0.35);
+
+  expect(p.t).toBe(0.35);
+  expect(p.liveT).toBe(0.35);
+});
+
+it('leaves a scrubbed-back playhead behind while the real clock runs', () => {
+  const p = followLive({ t: 0.1, liveT: 0.2, speed: 1, playing: true, scrubbing: false }, 0.3);
+
+  expect(p.t).toBe(0.1);
+  expect(p.liveT).toBe(0.3);
+});
+
+it('never drags the real live edge backwards', () => {
+  const p = followLive({ t: 0.1, liveT: 0.2, speed: 1, playing: true, scrubbing: false }, 0.1);
+
+  expect(p.liveT).toBe(0.2);
+});
+
+it('moves only the live edge while scrubbing the real clock', () => {
+  const p = followLive({ t: 0.2, liveT: 0.2, speed: 1, playing: true, scrubbing: true }, 0.4);
+
+  expect(p.t).toBe(0.2);
+  expect(p.liveT).toBe(0.4);
+});
+
+it('caps the real live edge at the end of the slate', () => {
+  const p = followLive({ t: 0.9, liveT: 0.9, speed: 1, playing: true, scrubbing: false }, 1.5);
+
+  expect(p.liveT).toBe(1);
+  expect(p.t).toBe(1);
+  expect(p.playing).toBe(false);
 });

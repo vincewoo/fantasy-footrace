@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { fmt, sgn, snapshotAt } from '../model/derive';
 import type { PlayEvent, Player, Side, Slate } from '../model/types';
 import { Avatar } from './Avatar';
-import { advance, cycleSpeed, goLive, initPlayback, scrubTo, togglePlay, type Playback } from './playback';
+import { advance, cycleSpeed, followLive, goLive, initPlayback, scrubTo, togglePlay, type Playback } from './playback';
 
 const INK = '#1c1a22';
 const ME = '#4a82f0';
@@ -53,17 +53,17 @@ interface PageState extends Playback {
   w: number;
 }
 
-function readSaved(): unknown {
+function readSaved(key: string): unknown {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    return JSON.parse(localStorage.getItem(key) || '{}');
   } catch {
     return undefined;
   }
 }
 
-function persist(t: number, liveT: number, speed: number): void {
+function persist(key: string, t: number, liveT: number, speed: number): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ t, liveT, speed }));
+    localStorage.setItem(key, JSON.stringify({ t, liveT, speed }));
   } catch {
     // storage stays optional: a node render, private mode or a blocked origin all throw
   }
@@ -77,11 +77,23 @@ export interface MatchupPageProps {
   slate: Slate;
   slateMinutes?: number;
   showTags?: boolean;
+  subtitle?: string;
+  headerExtra?: ReactNode;
+  liveNow?: () => number;
+  storageKey?: string;
 }
 
-export function MatchupPage({ slate, slateMinutes = 4, showTags = true }: MatchupPageProps): JSX.Element {
+export function MatchupPage({
+  slate,
+  slateMinutes = 4,
+  showTags = true,
+  subtitle = 'WEEK 4 · SUNDAY SLATE · BACKYARD LEAGUE',
+  headerExtra,
+  liveNow,
+  storageKey = STORAGE_KEY,
+}: MatchupPageProps): JSX.Element {
   const [state, setState] = useState<PageState>(() => ({
-    ...initPlayback(readSaved()),
+    ...initPlayback(readSaved(storageKey)),
     sound: false,
     anims: {},
     banner: null,
@@ -154,7 +166,7 @@ export function MatchupPage({ slate, slateMinutes = 4, showTags = true }: Matchu
     const s = stateRef.current;
     const next = cycleSpeed(s);
     apply({ ...s, ...next });
-    persist(next.t, next.liveT, next.speed);
+    persist(storageKey, next.t, next.liveT, next.speed);
   };
 
   const jumpLive = () => {
@@ -169,7 +181,7 @@ export function MatchupPage({ slate, slateMinutes = 4, showTags = true }: Matchu
     const s = stateRef.current;
     const next = scrubTo(s, (x - r.left) / r.width);
     apply({ ...s, ...next, anims: {}, banner: null });
-    persist(next.t, next.liveT, next.speed);
+    persist(storageKey, next.t, next.liveT, next.speed);
   };
 
   const scrubDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -217,7 +229,8 @@ export function MatchupPage({ slate, slateMinutes = 4, showTags = true }: Matchu
     const iv = setInterval(() => {
       const s = stateRef.current;
       if (!s.playing) return;
-      const next = advance(s, slateMinutes);
+      const advanced = advance(s, slateMinutes);
+      const next = liveNow ? followLive({ ...advanced, liveT: s.liveT }, liveNow()) : advanced;
       if (s.scrubbing) {
         apply({ ...s, ...next });
         return;
@@ -255,10 +268,10 @@ export function MatchupPage({ slate, slateMinutes = 4, showTags = true }: Matchu
       }
       apply({ ...s, ...next, anims, banner, bubbles });
       if (snd) sfx(snd);
-      persist(next.t, next.liveT, next.speed);
+      persist(storageKey, next.t, next.liveT, next.speed);
     }, 100);
     return () => clearInterval(iv);
-  }, [slate, slateMinutes]);
+  }, [slate, slateMinutes, liveNow, storageKey]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -411,9 +424,10 @@ export function MatchupPage({ slate, slateMinutes = 4, showTags = true }: Matchu
             <img src="/logo.svg" width={40} height={46} alt="Fantasy Footrace" style={{ display: 'block', flex: 'none', filter: 'drop-shadow(0 3px 0 #1c1a22)' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div style={{ fontFamily: LILITA, fontSize: 26, lineHeight: 1 }}>Fantasy Footrace</div>
-              <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566' }}>WEEK 4 · SUNDAY SLATE · BACKYARD LEAGUE</div>
+              <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566' }}>{subtitle}</div>
             </div>
           </div>
+          {headerExtra}
           <button onClick={toggleSound} {...press('sound')} style={{ fontFamily: SILK, fontSize: 11, fontWeight: 700, padding: '8px 12px', background: '#fffaf0', border: '2px solid #1c1a22', borderRadius: 8, boxShadow: '0 3px 0 #1c1a22', cursor: 'pointer', color: '#1c1a22', ...pressedStyle('sound', 2) }}>{sound ? 'SOUND: ON' : 'SOUND: OFF'}</button>
         </div>
 
