@@ -1,5 +1,5 @@
 import type { EventKind, PlayEvent, Pos, Side, Slate } from '../model/types';
-import type { ScoreAgainst } from './summary';
+import type { ScoreAgainst, YardsAgainst } from './summary';
 
 export interface Actual {
   total: number;
@@ -308,6 +308,7 @@ export interface DstHistory {
   tiers: DstTiers;
   plays: ScoreAgainst[];
   gNow: number;
+  drives?: YardsAgainst[];
 }
 
 const PA_RANGES: [string, number, number][] = [
@@ -391,6 +392,24 @@ function dstHistoryEvents(
       t: Math.min(w0 + g * (end - w0), end),
       text: `${name} allow a score (${play.pa} allowed)`,
     });
+  }
+
+  let prevYa = 0;
+  for (const drive of history.drives ?? []) {
+    const pts = round2(tierPoints(history.tiers.ya, drive.ya) - tierPoints(history.tiers.ya, prevYa));
+    if (Math.abs(pts) >= 0.005) {
+      const g = drive.g === null || history.gNow <= 0 ? 1 : drive.g / history.gNow;
+      events.push({
+        kind: 'rush',
+        yds: 0,
+        pts,
+        t: Math.min(w0 + g * (end - w0), end),
+        text: pts < 0
+          ? `${name} give up yards (${drive.ya} allowed)`
+          : `${name} tighten up (${drive.ya} allowed)`,
+      });
+    }
+    prevYa = drive.ya;
   }
 
   const pieces = decompose('DST', null, cur).filter(piece => piece.adjust === undefined);

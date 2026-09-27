@@ -247,7 +247,7 @@ it('rebuilds a D/ST’s scores allowed from the NFL game summary on load', async
     '0.200957 10 Bengals D/ST take the field',
     '0.205666 -2 Bengals D/ST allow a score (7 allowed)',
     '0.237259 -2 Bengals D/ST allow a score (14 allowed)',
-    '0.246635 -2 Bengals D/ST give up yards',
+    '0.237259 -2 Bengals D/ST give up yards (159 allowed)',
   ]);
   expect(def.every(e => e.kind === 'rush')).toBe(true);
   expect(def.reduce((total, e) => total + e.pts, 0)).toBe(4);

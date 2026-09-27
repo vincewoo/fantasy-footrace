@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { fetchSummary, gameProgress, scoresAgainst, summaryUrl } from './summary';
+import { fetchSummary, gameProgress, scoresAgainst, summaryUrl, yardsAgainst } from './summary';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtures', name), 'utf8'));
@@ -141,5 +141,51 @@ describe('scoresAgainst', () => {
 
     expect(plays).toEqual([]);
     expect(Number(gNow.toFixed(6))).toBe(0.296389);
+  });
+});
+
+describe('yardsAgainst', () => {
+  it('totals the yards the away defense gave up drive by drive', () => {
+    const drives = yardsAgainst(summary, 4);
+
+    expect(drives).toHaveLength(2);
+    expect(Number(drives[0].g!.toFixed(6))).toBe(0.030556);
+    expect(drives[0].ya).toBe(73);
+    expect(Number(drives[1].g!.toFixed(6))).toBe(0.235556);
+    expect(drives[1].ya).toBe(159);
+  });
+
+  it('counts the in-progress drive once with no progress', () => {
+    const drives = yardsAgainst(summary, 23);
+
+    expect(drives).toHaveLength(2);
+    expect(Number(drives[0].g!.toFixed(6))).toBe(0.152778);
+    expect(drives[0].ya).toBe(73);
+    expect(drives[1].g).toBeNull();
+    expect(drives[1].ya).toBe(105);
+  });
+
+  it('keeps the in-progress drive in its own slot when it also sits in previous', () => {
+    const live = JSON.parse(JSON.stringify(summary));
+    live.drives.previous[3].yards = 10;
+    live.drives.current.yards = 42;
+    live.drives.current.end = { period: { number: 2 }, clock: { displayValue: '10:00' } };
+
+    const drives = yardsAgainst(live, 23);
+
+    expect(drives.map(d => d.ya)).toEqual([73, 115]);
+    expect(Number(drives[1].g!.toFixed(6))).toBe(0.333333);
+  });
+
+  it('treats a drive with no yards as zero', () => {
+    const bare = JSON.parse(JSON.stringify(summary));
+    delete bare.drives.previous[1].yards;
+
+    expect(yardsAgainst(bare, 23)[0].ya).toBe(0);
+  });
+
+  it('has no drives for a summary without them', () => {
+    expect(yardsAgainst({}, 4)).toEqual([]);
+    expect(yardsAgainst({ drives: { current: { id: 1, team: { id: 4 }, yards: 30 } } }, 4)).toEqual([]);
   });
 });

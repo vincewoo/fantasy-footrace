@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import type { EventKind, PlayEvent, Pos, Slate } from '../model/types';
 import { buildSlate } from './slate';
-import { scoresAgainst } from './summary';
+import { scoresAgainst, yardsAgainst } from './summary';
 import { buildTimeline } from './timeline';
 import {
   actualOf,
@@ -804,5 +804,104 @@ describe('eventsFromPoll for a D/ST with a points-allowed history', () => {
       '0.246635 -2 Bengals D/ST give up yards',
     ]);
     expect(events.every(e => e.side === 'opp')).toBe(true);
+  });
+});
+
+describe('eventsFromPoll for a D/ST with a yards-allowed history', () => {
+  const slot = (over: any): any => ({
+    id: over.id,
+    name: over.name,
+    last: over.last ?? 'D/ST',
+    pos: over.pos ?? 'DST',
+    team: over.team ?? 'CIN',
+    num: 1,
+    proj: 0,
+    skin: 0,
+    hair: 'helmet',
+    window: [0.2, 0.5],
+  });
+  const slateOfDst = (lanes: any[]): Slate => ({
+    me: { name: 'Me', owner: 'YOU' },
+    opp: { name: 'Opp', owner: 'THEM' },
+    lanes,
+    events: [],
+    teamColors: {},
+    axis: [],
+    clockLabel: () => '',
+    statusLabel: () => '',
+  }) as Slate;
+  const t6 = (e: { t: number }): number => Number(e.t.toFixed(6));
+  const shown = (events: PlayEvent[]): string[] =>
+    events.map(e => `${t6(e)} ${e.pts} ${e.text}`);
+
+  const PIT = 23;
+  const toT = buildTimeline(kickoffsOf(WEEK), TZ).toT;
+  const w0 = toT(1790528400000);
+  const tNow = liveToT(WEEK, LIVE_NOW);
+
+  const steelersSlate = (): Slate => {
+    const game = slot({ id: '-16023', name: 'Steelers D/ST', team: 'PIT' });
+    game.window = [w0, toT(1790528400000 + 3.5 * 60 * 60 * 1000)];
+    return slateOfDst([{ slot: 'D/ST', me: slot({ id: '-16019', name: 'Giants D/ST', team: 'NYG' }), opp: game }]);
+  };
+  const steelersActual = (): Actual => bengalsActual('-16023');
+  const steelersHistory = (): DstHistory => ({
+    tiers: liveTiers,
+    plays: scoresAgainst(summaryFixture, PIT).plays,
+    gNow: scoresAgainst(summaryFixture, PIT).gNow,
+    drives: yardsAgainst(summaryFixture, PIT),
+  });
+
+  it('places each yards tier drop at the drive that crossed it', () => {
+    const cur = steelersActual();
+    expect([cur.total, cur.stats['120'], cur.stats['127']]).toEqual([6, 7, 110]);
+
+    const events = eventsFromPoll(steelersSlate(), null, {
+      actuals: { '-16023': cur },
+      out: [],
+    }, tNow, 1, { '-16023': steelersHistory() });
+
+    expect(shown(events)).toEqual([
+      '0.200957 10 Steelers D/ST take the field',
+      '0.224502 -2 Steelers D/ST allow a score (7 allowed)',
+      '0.246635 -2 Steelers D/ST give up yards (105 allowed)',
+    ]);
+    expect(events.every(e => e.kind === 'rush' && e.yds === 0)).toBe(true);
+    expect(sumOf(events.map(e => ({ kind: e.kind, yds: e.yds, pts: e.pts })))).toBe(6);
+    expect(events.every(e => e.side === 'opp')).toBe(true);
+  });
+
+  it('reports a tier climb as the defense tightening up', () => {
+    const cur = steelersActual();
+    const history = steelersHistory();
+    history.drives = [{ g: null, ya: 250 }, { g: null, ya: 90 }];
+
+    const events = eventsFromPoll(steelersSlate(), null, {
+      actuals: { '-16023': { total: 6, stats: cur.stats, applied: cur.applied } },
+      out: [],
+    }, tNow, 1, { '-16023': history });
+
+    const yards = events.filter(e => e.text.includes('yards (') || e.text.includes('tighten up ('));
+    expect(shown(yards)).toEqual([
+      '0.246635 -3 Steelers D/ST give up yards (250 allowed)',
+      '0.246635 3 Steelers D/ST tighten up (90 allowed)',
+    ]);
+  });
+
+  it('skips a drive that did not move the yards tier', () => {
+    const cur = steelersActual();
+    const history = steelersHistory();
+    history.drives = [{ g: null, ya: 40 }, { g: null, ya: 80 }];
+
+    const events = eventsFromPoll(steelersSlate(), null, {
+      actuals: { '-16023': cur },
+      out: [],
+    }, tNow, 1, { '-16023': history });
+
+    expect(shown(events)).toEqual([
+      '0.200957 10 Steelers D/ST take the field',
+      '0.224502 -2 Steelers D/ST allow a score (7 allowed)',
+      '0.246635 -2 Steelers D/ST give up yards',
+    ]);
   });
 });

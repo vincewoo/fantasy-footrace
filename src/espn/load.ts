@@ -9,7 +9,7 @@ import {
   type PollState,
 } from './live';
 import { buildSlate, listTeams, posOf, proTeamsOf, type LeagueTeam } from './slate';
-import { fetchSummary, scoresAgainst } from './summary';
+import { fetchSummary, scoresAgainst, yardsAgainst } from './summary';
 import { buildTimeline } from './timeline';
 
 export interface LeagueInfo {
@@ -97,7 +97,14 @@ async function dstHistoryOf(
     starters.map(async starter => {
       try {
         const summary = await fetchSummary(starter.eventId, { fetchImpl });
-        return { starter, history: { tiers, ...scoresAgainst(summary, starter.proTeamId) } };
+        return {
+          starter,
+          history: {
+            tiers,
+            ...scoresAgainst(summary, starter.proTeamId),
+            drives: yardsAgainst(summary, starter.proTeamId),
+          },
+        };
       } catch {
         return null;
       }

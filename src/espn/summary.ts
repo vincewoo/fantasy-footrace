@@ -70,3 +70,46 @@ export function scoresAgainst(
 
   return { plays, gNow };
 }
+
+export interface YardsAgainst {
+  g: number | null;
+  ya: number;
+}
+
+export function yardsAgainst(summary: any, proTeamId: number): YardsAgainst[] {
+  const all: any[] = [...(summary?.drives?.previous ?? [])];
+  const current = summary?.drives?.current;
+  if (Array.isArray(current)) all.push(...current);
+  else if (current) all.push(current);
+
+  const ordered: any[] = [];
+  const seen = new Map<string, any>();
+  for (const drive of all) {
+    const id = String(drive?.id ?? '');
+    const first = seen.get(id);
+    if (first) {
+      first.yards = drive?.yards;
+      first.end = drive?.end;
+      continue;
+    }
+    const copy = { id, team: drive?.team, yards: drive?.yards, end: drive?.end };
+    seen.set(id, copy);
+    ordered.push(copy);
+  }
+
+  const out: YardsAgainst[] = [];
+  let ya = 0;
+  for (const drive of ordered) {
+    if (String(drive.team?.id) === String(proTeamId)) continue;
+    ya += Number(drive.yards) || 0;
+    const period = Number(drive.end?.period?.number);
+    out.push({
+      g: Number.isFinite(period)
+        ? gameProgress(period, String(drive.end?.clock?.displayValue ?? '0:00'))
+        : null,
+      ya,
+    });
+  }
+
+  return out;
+}
