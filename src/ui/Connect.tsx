@@ -111,7 +111,8 @@ function problem(error: unknown): string {
   }
   if (espn?.kind === 'key') return 'This app needs the league passphrase.';
   if (espn?.kind === 'network') return "Can't reach the ESPN proxy.";
-  return `ESPN returned an error (${espn ? espn.status : 0}).`;
+  if (!espn) return `Couldn't read the league data: ${error instanceof Error ? error.message : String(error)}`;
+  return `ESPN returned an error (${espn.status}).`;
 }
 
 export function ConnectError(props: { error: unknown; onRetry(): void; onDemo(): void }): JSX.Element {

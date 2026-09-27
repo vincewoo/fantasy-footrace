@@ -1,6 +1,6 @@
 import type { Slate } from '../model/types';
 import { fetchLeague, fetchSeason } from './client';
-import { buildSlate, listTeams, type LeagueTeam } from './slate';
+import { buildSlate, listTeams, proTeamsOf, type LeagueTeam } from './slate';
 import { buildTimeline } from './timeline';
 
 export interface LeagueInfo {
@@ -28,7 +28,7 @@ export interface LiveSlate {
 
 function weekKickoffs(season: any, week: number): number[] {
   const dates: number[] = [];
-  for (const team of season.proTeams ?? []) {
+  for (const team of proTeamsOf(season)) {
     for (const game of team.proGamesByScoringPeriod?.[String(week)] ?? []) dates.push(game.date);
   }
   return dates;

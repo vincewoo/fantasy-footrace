@@ -103,3 +103,9 @@ describe('buildTimeline', () => {
     expect(tl.clockLabel(1)).toBe('MON 11:45 PM');
   });
 });
+
+describe('buildTimeline without kickoffs', () => {
+  it('throws instead of building an empty timeline', () => {
+    expect(() => buildTimeline([], TZ)).toThrow('no NFL kickoffs for this week');
+  });
+});

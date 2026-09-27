@@ -25,7 +25,7 @@ function fakeFetch(): { calls: Call[]; fetchImpl: typeof fetch } {
     if (url.includes('view=mSettings')) return fakeResponse(league);
     return url.includes('/leagues/')
       ? fakeResponse({ schedule: league.schedule })
-      : fakeResponse(fixture('season-proteams-week3.json'));
+      : fakeResponse(fixture('season-2026-proteams.json'));
   };
   return { calls, fetchImpl };
 }

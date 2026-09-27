@@ -34,6 +34,7 @@ function clusters(kickoffs: number[]): number[] {
 
 export function buildTimeline(kickoffsMs: number[], timeZone: string): Timeline {
   const kickoffs = [...new Set(kickoffsMs)].sort((a, b) => a - b);
+  if (kickoffs.length === 0) throw new Error('no NFL kickoffs for this week');
 
   const windows: { start: number; end: number }[] = [];
   for (const k of kickoffs) {

@@ -11,7 +11,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtures', name), 'utf8'));
 
 const league = fixture('week3-pregame.json');
-const season = fixture('season-proteams-week3.json');
+const season = fixture('season-2026-proteams.json');
 const TZ = 'America/New_York';
 const slate = buildSlate(league, season, 1, { timeZone: TZ });
 
@@ -68,15 +68,17 @@ const miniLeague = {
 };
 
 const miniSeason = {
-  proTeams: [
-    {
-      id: 8,
-      abbrev: 'DET',
-      proGamesByScoringPeriod: {
-        '1': [{ id: 99, date: 1790528400000, homeProTeamId: 8, awayProTeamId: 20 }],
+  settings: {
+    proTeams: [
+      {
+        id: 8,
+        abbrev: 'DET',
+        proGamesByScoringPeriod: {
+          '1': [{ id: 99, date: 1790528400000, homeProTeamId: 8, awayProTeamId: 20 }],
+        },
       },
-    },
-  ],
+    ],
+  },
 };
 
 describe('proTeams', () => {
@@ -344,5 +346,19 @@ describe('buildSlate corner cases', () => {
     const kicker = mini.lanes[4].me;
     expect(kicker).toMatchObject({ name: 'Mine K', team: 'TEN', window: [1, 1], proj: 0 });
     expect(mini.statusLabel(kicker, 0)).toBe('BYE');
+  });
+});
+
+describe('buildSlate without a real season response', () => {
+  it('throws when settings.proTeams is missing', () => {
+    expect(() => buildSlate(league, { display: {}, settings: {} }, 1, { timeZone: TZ })).toThrow(
+      'season response has no settings.proTeams',
+    );
+  });
+
+  it('rejects the old top-level proTeams shape', () => {
+    expect(() => buildSlate(league, { proTeams: [] }, 1, { timeZone: TZ })).toThrow(
+      'season response has no settings.proTeams',
+    );
   });
 });

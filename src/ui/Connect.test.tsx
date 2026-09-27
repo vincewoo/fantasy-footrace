@@ -13,4 +13,13 @@ describe('ConnectError', () => {
     expect(markup).toContain('type="password"');
     expect(markup).toContain('Unlock');
   });
+
+  it('shows the real error message instead of a status of zero', () => {
+    const markup = renderToStaticMarkup(
+      <ConnectError error={new TypeError('boom')} onRetry={() => {}} onDemo={() => {}} />,
+    );
+
+    expect(markup.replace(/&#x27;/g, "'")).toContain("Couldn't read the league data: boom");
+    expect(markup).not.toContain('(0)');
+  });
 });

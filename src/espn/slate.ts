@@ -82,9 +82,15 @@ function lookOf(id: number, pos: Pos): Pick<Player, 'skin' | 'hair' | 'hc' | 'be
   };
 }
 
+export function proTeamsOf(season: any): any[] {
+  const proTeams = season?.settings?.proTeams;
+  if (!Array.isArray(proTeams)) throw new Error('season response has no settings.proTeams');
+  return proTeams;
+}
+
 function weekGames(season: any, week: number): ProGame[] {
   const games = new Map<number, ProGame>();
-  for (const team of season.proTeams ?? []) {
+  for (const team of proTeamsOf(season)) {
     for (const game of team.proGamesByScoringPeriod?.[String(week)] ?? []) {
       if (!games.has(game.id)) games.set(game.id, game);
     }
