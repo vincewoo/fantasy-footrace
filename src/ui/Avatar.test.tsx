@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import type { EventKind, Player, PlayEvent, TeamColors } from '../model/types';
-import { Avatar, type AvatarProps } from './Avatar';
+import { Avatar, celebrationOf, type AvatarProps } from './Avatar';
 
 const BUF: TeamColors = { c1: '#00338D', c2: '#C60C30' };
 const BAL: TeamColors = { c1: '#241773', c2: '#9E7C0C' };
@@ -107,4 +107,80 @@ it('renders the design\u2019s defense tag', () => {
 
   expect(divs(m)).toBe(20);
   expect(m).toContain('>DEN D 2.0<');
+});
+
+const evId = (kind: EventKind, pts: number, id: number): PlayEvent => ({ ...ev(kind, pts), id });
+
+it('cycles the five celebrations by event id', () => {
+  expect([0, 1, 2, 3, 4].map(n => celebrationOf(evId('recTD', 6.2, n)))).toEqual([
+    'griddy',
+    'spin',
+    'bird',
+    'twerk',
+    'spike',
+  ]);
+});
+
+it('keeps the touchdown catch on today\u2019s spin for id 1', () => {
+  const m = render({ event: evId('recTD', 6.2, 1) });
+
+  expect(m).toContain('av-catchtd 1.9s steps(28)');
+  expect(m).toContain('arm-up-f-late 1.9s steps(24)');
+  expect(m).toContain('arm-up-b-late 1.9s steps(24)');
+  expect(m).not.toContain('cel-');
+  expect(m).not.toContain('-pre');
+});
+
+it('renders the Dirty Bird catch', () => {
+  const m = render({ event: evId('recTD', 6.2, 2) });
+
+  expect(m).toContain('av-catchtd-pre 1.9s steps(28)');
+  expect(m).toContain('cel-bird-arm-f 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('cel-bird-arm-b 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('cel-bird-leg 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('cel-bird-body 1.8s steps(18) 1.18s forwards');
+  expect(m).not.toContain('av-catchtd 1.9s');
+});
+
+it('renders the Twerk catch from behind', () => {
+  const m = render({ event: evId('recTD', 6.2, 3) });
+
+  expect(count(m, 'cel-face-away 1.8s steps(1) 1.18s forwards')).toBe(4);
+  expect(m).toContain('cel-twerk-body 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('cel-twerk-leg-f');
+  expect(m).toContain('cel-twerk-leg-b');
+});
+
+it('renders the Griddy catch', () => {
+  const m = render({ event: evId('recTD', 6.2, 0) });
+
+  expect(m).toContain('cel-griddy-leg-f 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('cel-griddy-leg-b 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('cel-griddy-body 1.8s steps(18) 1.18s forwards');
+});
+
+it('renders the Spike catch with a ball', () => {
+  const m = render({ event: evId('recTD', 6.2, 4) });
+
+  expect(m).toContain('cel-spike-ball 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('cel-spike-arm 1.8s steps(18) 1.18s forwards');
+  expect(count(m, '#8a4b22')).toBe(2);
+});
+
+it('appends the celebration after the throw on a spiked touchdown pass', () => {
+  const m = render({ event: evId('passTD', 4.4, 2) });
+
+  expect(m).toContain('animation:arm-throw 1.4s steps(18), cel-bird-arm-f 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('av-throwtd-pre 1.9s steps(28)');
+  expect(m).not.toContain('arm-up-f-late');
+});
+
+it('runs every celebration on the 1.18s forwards beat', () => {
+  for (const n of [0, 2, 3, 4]) {
+    const m = render({ event: evId('rushTD', 6.0, n) });
+    const anims = [...m.matchAll(/animation:([^;"]*cel-[^;"]*)/g)].map(match => match[1]);
+
+    expect(anims.length).toBeGreaterThan(0);
+    for (const anim of anims) expect(anim).toContain('1.18s forwards');
+  }
 });

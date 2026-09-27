@@ -20,6 +20,14 @@ export const ANIM: Record<EventKind, string> = {
   injury: 'hurt',
 };
 
+export type Celebration = 'spin' | 'bird' | 'twerk' | 'griddy' | 'spike';
+
+export const CELEBRATIONS: readonly Celebration[] = ['griddy', 'spin', 'bird', 'twerk', 'spike'];
+
+export function celebrationOf(ev: PlayEvent): Celebration {
+  return CELEBRATIONS[ev.id % CELEBRATIONS.length];
+}
+
 const INK = '#1c1a22';
 const CREAM = '#fffaf0';
 const SK = ['#f3cfae', '#dfa97f', '#b67b52', '#8a5634', '#5e3a22'];
@@ -102,6 +110,22 @@ function figure(
   if (nap) a = null;
   if (nap || isOut) boost = false;
   const TD = a === 'td' || a === 'catchTD' || a === 'throwTD';
+  const PRE: Record<string, string> = {
+    catchTD: 'av-catchtd-pre 1.9s steps(28)',
+    td: 'av-td-pre 1.9s steps(28)',
+    throwTD: 'av-throwtd-pre 1.9s steps(28)',
+  };
+  const CELLS: Record<string, { body: string | null; armF: string | null; armB: string | null; legF: string | null; legB: string | null; face: boolean; ball: boolean }> = {
+    bird: { body: 'cel-bird-body', armF: 'cel-bird-arm-f', armB: 'cel-bird-arm-b', legF: 'cel-bird-leg', legB: null, face: false, ball: false },
+    twerk: { body: 'cel-twerk-body', armF: 'cel-twerk-arm-f', armB: 'cel-twerk-arm-b', legF: 'cel-twerk-leg-f', legB: 'cel-twerk-leg-b', face: true, ball: false },
+    griddy: { body: 'cel-griddy-body', armF: 'cel-griddy-arm-f', armB: 'cel-griddy-arm-b', legF: 'cel-griddy-leg-f', legB: 'cel-griddy-leg-b', face: false, ball: false },
+    spike: { body: null, armF: 'cel-spike-arm', armB: null, legF: null, legB: null, face: false, ball: true },
+  };
+  const CEL = ' 1.8s steps(18) 1.18s forwards';
+  const cel = TD && ev && celebrationOf(ev) !== 'spin' ? celebrationOf(ev) : null;
+  const C = cel ? CELLS[cel] : null;
+  const CEL18 = (name: string) => name + CEL;
+  const withCel = (base: string, name: string | null): string => (name ? (base === 'none' ? CEL18(name) : base + ', ' + CEL18(name)) : base);
   const BODY: Record<string, string> = {
     catch: 'av-jump 1.6s steps(24)',
     catchTD: 'av-catchtd 1.9s steps(28)',
@@ -116,24 +140,28 @@ function figure(
     takeaway: 'av-jump 1.6s steps(24)',
     hurt: 'av-hurt 1.4s steps(18) forwards',
   };
-  const bodyAnim = nap
-    ? `breathe 2.4s steps(6) ${-(i * 0.3).toFixed(2)}s infinite`
-    : a ? BODY[a]
-      : boost ? `hover 1s steps(6) ${-(i * 0.2).toFixed(2)}s infinite`
-        : isOut ? 'none' : `av-idle 1.1s steps(2) ${-(i * 0.17).toFixed(2)}s infinite`;
+  const bodyAnim = C
+    ? PRE[a as string] + (C.body ? ', ' + CEL18(C.body) : '')
+    : nap
+      ? `breathe 2.4s steps(6) ${-(i * 0.3).toFixed(2)}s infinite`
+      : a ? BODY[a]
+        : boost ? `hover 1s steps(6) ${-(i * 0.2).toFixed(2)}s infinite`
+          : isOut ? 'none' : `av-idle 1.1s steps(2) ${-(i * 0.17).toFixed(2)}s infinite`;
   const run = a && !['kick', 'hurt', 'throw', 'sack'].includes(a);
-  const legAnim = (d: number) => (run ? `leg .16s steps(2) ${(0.4 + d).toFixed(2)}s 7 alternate` : 'none');
+  const legAnim = (d: number, name: string | null) => withCel(run ? `leg .16s steps(2) ${(0.4 + d).toFixed(2)}s 7 alternate` : 'none', name);
   const leg = (left: number, anim: string, key: string) => (
     <div
       key={key}
       style={{ position: 'absolute', left, bottom: 3, width: 7, height: 10, background: T.c2, border: B, borderRadius: '2px 2px 3px 3px', transformOrigin: '50% 0', animation: anim }}
     />
   );
-  const armF = (a === 'throw' || a === 'throwTD' || a === 'int') ? 'arm-throw 1.4s steps(18)'
+  const armFbase = (a === 'throw' || a === 'throwTD' || a === 'int') ? 'arm-throw 1.4s steps(18)'
     : (a === 'catch' || a === 'takeaway') ? 'arm-up-f 1.6s steps(20)'
-      : TD ? 'arm-up-f-late 1.9s steps(24)' : 'none';
-  const armB = (a === 'catch' || a === 'takeaway') ? 'arm-up-b 1.6s steps(20)'
-    : TD ? 'arm-up-b-late 1.9s steps(24)' : 'none';
+      : TD && !C ? 'arm-up-f-late 1.9s steps(24)' : 'none';
+  const armBbase = (a === 'catch' || a === 'takeaway') ? 'arm-up-b 1.6s steps(20)'
+    : TD && !C ? 'arm-up-b-late 1.9s steps(24)' : 'none';
+  const armF = withCel(armFbase, C ? C.armF : null);
+  const armB = withCel(armBbase, C ? C.armB : null);
   const arm = (left: number, anim: string, key: string) => (
     <div
       key={key}
@@ -153,15 +181,16 @@ function figure(
   const hr = hair(p, T);
   const eyeH = nap ? 2 : mood === 'happy' ? 3 : 5;
   if (nap) Object.assign(mouth, { top: 17, left: 16, width: 4, height: 4, background: mc, borderTop: 'none', borderRadius: '50%' });
+  const faceAnim = C && C.face ? 'cel-face-away 1.8s steps(1) 1.18s forwards' : undefined;
   const head = (
     <div key="hw" style={{ position: 'absolute', left: 3, bottom: 24, width: 28, height: 25 }}>
       {hr.back}
       <div key="hd" style={{ position: 'absolute', inset: 0, background: skin, border: B, borderRadius: '50%', overflow: 'hidden' }}>
         {p.beard ? <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 10, background: p.hc }} /> : null}
-        <div style={{ position: 'absolute', left: 19, top: 15, width: 5, height: 3, borderRadius: '50%', background: 'rgba(255,110,110,.45)' }} />
-        <div style={{ position: 'absolute', left: 12, top: 9, width: 3, height: eyeH, background: INK, borderRadius: 2 }} />
-        <div style={{ position: 'absolute', left: 19, top: 9, width: 3, height: eyeH, background: INK, borderRadius: 2 }} />
-        <div style={{ position: 'absolute', ...mouth }} />
+        <div style={{ position: 'absolute', left: 19, top: 15, width: 5, height: 3, borderRadius: '50%', background: 'rgba(255,110,110,.45)', animation: faceAnim }} />
+        <div style={{ position: 'absolute', left: 12, top: 9, width: 3, height: eyeH, background: INK, borderRadius: 2, animation: faceAnim }} />
+        <div style={{ position: 'absolute', left: 19, top: 9, width: 3, height: eyeH, background: INK, borderRadius: 2, animation: faceAnim }} />
+        <div style={{ position: 'absolute', ...mouth, animation: faceAnim }} />
       </div>
       {hr.front}
     </div>
@@ -182,6 +211,14 @@ function figure(
     <div
       key="ball"
       style={{ position: 'absolute', left: 24, bottom: a === 'kick' ? 1 : 15, width: 12, height: 8, background: '#8a4b22', border: B, borderRadius: '50%', animation: BALL[a], opacity: 0, zIndex: 3 }}
+    >
+      <div style={{ position: 'absolute', left: 3, right: 3, top: 1, height: 1.5, background: CREAM }} />
+    </div>
+  ) : null;
+  const celBall = C && C.ball ? (
+    <div
+      key="celball"
+      style={{ position: 'absolute', left: 24, bottom: 15, width: 12, height: 8, background: '#8a4b22', border: B, borderRadius: '50%', animation: 'cel-spike-ball 1.8s steps(18) 1.18s forwards', opacity: 0, zIndex: 3 }}
     >
       <div style={{ position: 'absolute', left: 3, right: 3, top: 1, height: 1.5, background: CREAM }} />
     </div>
@@ -209,8 +246,8 @@ function figure(
     >
       {pack}
       {arm(3, armB, 'ab')}
-      {leg(10, legAnim(0), 'l1')}
-      {leg(18, a === 'kick' ? 'leg-kick 1.4s steps(18)' : legAnim(0.08), 'l2')}
+      {leg(10, legAnim(0, C ? C.legB : null), 'l1')}
+      {leg(18, a === 'kick' ? 'leg-kick 1.4s steps(18)' : legAnim(0.08, C ? C.legF : null), 'l2')}
       <div
         key="body"
         style={{ position: 'absolute', left: 5, bottom: 11, width: 24, height: 16, background: T.c1, border: B, borderRadius: '8px 8px 4px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Silkscreen', monospace", fontWeight: 700, fontSize: 9, color: T.numC || '#fff', lineHeight: 1 }}
@@ -220,6 +257,7 @@ function figure(
       {arm(25, armF, 'af')}
       {head}
       {ball}
+      {celBall}
     </div>
   );
 }

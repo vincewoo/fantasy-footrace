@@ -287,7 +287,7 @@ export function MatchupPage({
           const key = laneKey(e.side, e.lane);
           anims[key] = e;
           firedAtRef.current[key] = Date.now();
-          later(() => apply({ ...stateRef.current }), 2200);
+          later(() => apply({ ...stateRef.current }), TDK[e.kind] ? 3400 : 2200);
           const pts = e.pts ?? 0;
           let bt: string | null = null;
           if (TDK[e.kind]) bt = e.kind === 'dtd' ? 'PICK SIX!' : 'TOUCHDOWN!';
@@ -375,7 +375,7 @@ export function MatchupPage({
 
   const act = (key: string): PlayEvent | null => {
     const e = anims[key];
-    return e && e.t <= t && now - (firedAtRef.current[key] || 0) < 2100 ? e : null;
+    return e && e.t <= t && now - (firedAtRef.current[key] || 0) < (TDK[e.kind] ? 3300 : 2100) ? e : null;
   };
 
   const lanes = slate.lanes.map((lane, i) => {
