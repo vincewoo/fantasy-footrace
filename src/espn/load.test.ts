@@ -191,13 +191,12 @@ it('turns the points scored since the last poll into events at the current time'
   const next = await pollLive(info, live, { fetchImpl: pollFetch, now: NOW });
   const added = next.slate.events.slice(21);
 
-  expect(added).toHaveLength(2);
+  expect(added).toHaveLength(1);
   expect(added.map(e => [e.id, e.kind, e.yds, e.pts])).toEqual([
-    [22, 'pass', 15, 0.6],
-    [23, 'pass', 15, 0.6],
+    [22, 'pass', 30, 1.2],
   ]);
   expect(added.every(e => e.t > tNow && e.t < tNow + 1e-5)).toBe(true);
-  expect(added.every(e => e.text === 'Love completes 15 yds')).toBe(true);
+  expect(added.every(e => e.text === 'Love completes 30 yds')).toBe(true);
   expect(next.slate.events.slice(0, 21)).toEqual(live.slate.events);
   expect(next.poll.actuals['4036378'].total).toBe(19.68);
   expect(fmt(snapshotAt(next.slate, tNow + 1e-5).totals.me)).toBe('42.8');

@@ -172,11 +172,13 @@ function spread(total: number, n: number): number[] {
   return pts;
 }
 
-function runPieces(kind: EventKind, yards: number, points: number): Piece[] {
+function runPieces(kind: EventKind, yards: number, points: number, count?: number): Piece[] {
   const y = Math.round(yards);
   if (y <= 0) return [];
 
-  const n = Math.min(Math.max(1, Math.round(y / 15)), 8);
+  const n = count === undefined
+    ? Math.min(Math.max(1, Math.round(y / 15)), 8)
+    : Math.min(Math.max(1, Math.floor(count)), 8);
   const base = Math.floor(y / n);
   const extra = y % n;
   const pts = spread(points, n);
@@ -219,15 +221,32 @@ export function decompose(pos: Pos, prev: Actual | null, cur: Actual): Piece[] {
   if (Math.abs(dTotal) < 0.005 && !hasGain) return [];
 
   const yardage: Piece[] = [];
-  yardage.push(...runPieces('pass', num(dStats, '3'), num(dApplied, '3')));
-  yardage.push(...runPieces('rush', num(dStats, '24'), num(dApplied, '24')));
+  if (prev === null) {
+    yardage.push(...runPieces('pass', num(dStats, '3'), num(dApplied, '3')));
+    yardage.push(...runPieces('rush', num(dStats, '24'), num(dApplied, '24')));
 
-  const catchYards = num(dStats, '42');
-  const catchPoints = num(dApplied, '42') + num(dApplied, '53');
-  if (catchYards > 0) yardage.push(...runPieces('catch', catchYards, catchPoints));
-  else if (num(dStats, '53') > 0) {
-    const n = Math.min(Math.floor(num(dStats, '53')), 8);
-    yardage.push(...spread(catchPoints, n).map(pts => ({ kind: 'catch' as EventKind, yds: 0, pts })));
+    const catchYards = num(dStats, '42');
+    const firstCatchPoints = num(dApplied, '42') + num(dApplied, '53');
+    if (catchYards > 0) yardage.push(...runPieces('catch', catchYards, firstCatchPoints));
+    else if (num(dStats, '53') > 0) {
+      const n = Math.min(Math.floor(num(dStats, '53')), 8);
+      yardage.push(...spread(firstCatchPoints, n).map(pts => ({ kind: 'catch' as EventKind, yds: 0, pts })));
+    }
+  } else {
+    const pieceCount = (delta: number): number => (delta > 0 ? Math.floor(delta) : 1);
+
+    yardage.push(...runPieces('pass', num(dStats, '3'), num(dApplied, '3'), pieceCount(num(dStats, '1'))));
+    yardage.push(...runPieces('rush', num(dStats, '24'), num(dApplied, '24'), pieceCount(num(dStats, '23'))));
+
+    const catchYards = num(dStats, '42');
+    const catchPoints = num(dApplied, '42') + num(dApplied, '53');
+    if (catchYards > 0) {
+      const receptions = '53' in cur.stats || '53' in prev.stats ? num(dStats, '53') : num(dStats, '41');
+      yardage.push(...runPieces('catch', catchYards, catchPoints, pieceCount(receptions)));
+    } else if (num(dStats, '53') > 0) {
+      const n = Math.min(Math.floor(num(dStats, '53')), 8);
+      yardage.push(...spread(catchPoints, n).map(pts => ({ kind: 'catch' as EventKind, yds: 0, pts })));
+    }
   }
 
   const specials: Piece[] = [];
@@ -241,11 +260,16 @@ export function decompose(pos: Pos, prev: Actual | null, cur: Actual): Piece[] {
     specials.push(...unitPieces(kind, Math.min(num(dStats, rule.stat), 8), num(dApplied, rule.stat), rule.note));
   }
 
-  const n = yardage.length;
-  const k = specials.length;
-  const pieces = [...yardage];
-  for (let j = 0; j < k; j += 1) {
-    pieces.splice(Math.floor(((j + 1) * n) / (k + 1)) + j, 0, specials[j]);
+  let pieces: Piece[];
+  if (prev === null) {
+    const n = yardage.length;
+    const k = specials.length;
+    pieces = [...yardage];
+    for (let j = 0; j < k; j += 1) {
+      pieces.splice(Math.floor(((j + 1) * n) / (k + 1)) + j, 0, specials[j]);
+    }
+  } else {
+    pieces = [...yardage, ...specials];
   }
 
   const sum = pieces.reduce((total, piece) => total + piece.pts, 0);

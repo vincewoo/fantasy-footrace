@@ -164,11 +164,11 @@ describe('decompose', () => {
 
     expect(shown(pieces)).toBe(
       [
-        'pass 16 0.64', 'pass 16 0.64', 'passTD 0 4', 'pass 16 0.64', 'pass 16 0.64',
-        'int 0 -2', 'pass 16 0.64', 'pass 16 0.64', 'pass 16 0.64',
+        'pass 14 0.56', 'pass 14 0.56', 'pass 14 0.56', 'pass 14 0.56', 'pass 14 0.56',
+        'pass 14 0.56', 'pass 14 0.56', 'pass 14 0.56', 'passTD 0 4', 'int 0 -2',
       ].join(', '),
     );
-    expect(pieces).toHaveLength(9);
+    expect(pieces).toHaveLength(10);
     expect(sumOf(pieces)).toBe(6.48);
   });
 
@@ -358,14 +358,13 @@ describe('eventsFromPoll for a later poll', () => {
     };
     const events = eventsFromPoll(slate, poll, next, toNow, 22);
 
-    expect(events).toHaveLength(2);
-    expect(events.map(e => e.id)).toEqual([22, 23]);
+    expect(events).toHaveLength(1);
+    expect(events.map(e => e.id)).toEqual([22]);
     expect(events.map(e => [e.kind, e.yds, e.pts])).toEqual([
-      ['pass', 15, 0.6],
-      ['pass', 15, 0.6],
+      ['pass', 30, 1.2],
     ]);
     expect(events.every(e => e.t > toNow)).toBe(true);
-    expect(events[0].text).toBe('Love completes 15 yds');
+    expect(events[0].text).toBe('Love completes 30 yds');
   });
 
   it('reports a starter ruled out since the last poll at the current time', () => {
@@ -1042,5 +1041,53 @@ describe('eventsFromPoll for a D/ST with a yards-allowed history', () => {
       '0.224502 -2 Steelers D/ST allow a score (7 allowed)',
       '0.246635 -2 Steelers D/ST give up yards',
     ]);
+  });
+});
+
+describe('decompose on a later poll splits yardage by the play count', () => {
+  const empty: Actual = { total: 0, stats: {}, applied: {} };
+
+  it('reads one 80-yard catch and its touchdown as two pieces', () => {
+    const cur: Actual = { total: 14, stats: { '42': 80, '43': 1 }, applied: { '42': 8, '43': 6 } };
+
+    expect(decompose('WR', empty, cur)).toEqual([
+      { kind: 'catch', yds: 80, pts: 8 },
+      { kind: 'recTD', yds: 0, pts: 6 },
+    ]);
+  });
+
+  it('splits the yardage once per reception ESPN counted', () => {
+    const prev: Actual = { total: 4.5, stats: { '53': 3, '42': 30 }, applied: { '42': 3, '53': 1.5 } };
+    const cur: Actual = { total: 8.3, stats: { '53': 5, '42': 58 }, applied: { '42': 5.8, '53': 2.5 } };
+    const pieces = decompose('WR', prev, cur);
+
+    expect(pieces).toEqual([
+      { kind: 'catch', yds: 14, pts: 1.9 },
+      { kind: 'catch', yds: 14, pts: 1.9 },
+    ]);
+    expect(pieces.reduce((total, p) => total + p.yds, 0)).toBe(28);
+    expect(sumOf(pieces)).toBe(3.8);
+  });
+
+  it('splits rushing yardage once per attempt', () => {
+    const cur: Actual = { total: 1.8, stats: { '23': 3, '24': 12 }, applied: { '24': 1.8 } };
+
+    expect(decompose('RB', empty, cur)).toEqual([
+      { kind: 'rush', yds: 4, pts: 0.6 },
+      { kind: 'rush', yds: 4, pts: 0.6 },
+      { kind: 'rush', yds: 4, pts: 0.6 },
+    ]);
+  });
+
+  it('leaves the first observation on the yards-per-15 spread', () => {
+    const pieces = decompose('QB', null, actualNamed('Jordan Love'));
+
+    expect(shown(pieces)).toBe(
+      [
+        'pass 39 1.56', 'pass 39 1.56', 'passTD 0 4', 'pass 39 1.56', 'pass 39 1.56',
+        'passTD 0 4', 'pass 39 1.56', 'pass 39 1.56', 'int 0 -2', 'pass 39 1.56', 'pass 39 1.56',
+      ].join(', '),
+    );
+    expect(pieces).toHaveLength(11);
   });
 });
