@@ -463,10 +463,12 @@ export function MatchupPage({
   };
 
   let bannerEl: JSX.Element | null = null;
+  let bannerHost = -1;
   if (banner && banner.e.t <= t) {
     const bp = slate.lanes[banner.e.lane][banner.e.side];
+    bannerHost = banner.e.lane;
     bannerEl = (
-      <div key={'b' + banner.id} style={{ position: 'absolute', left: 0, right: 0, top: '36%', display: 'flex', justifyContent: 'center', pointerEvents: 'none', zIndex: 30 }}>
+      <div key={'b' + banner.id} style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0, animation: 'banner 1.9s steps(19) forwards' }}>
           <div style={{ fontFamily: LILITA, fontSize: compact ? 38 : 68, lineHeight: 1, color: banner.good ? '#ffd23f' : '#ff8a73', WebkitTextStroke: (compact ? 2 : 3) + 'px ' + INK, textShadow: '0 5px 0 ' + INK, whiteSpace: 'nowrap' }}>{banner.text}</div>
           <div style={{ fontFamily: SILK, fontSize: 12, fontWeight: 700, color: CREAM, background: banner.e.side === 'me' ? '#1f3f86' : '#8a2a1a', border: '2px solid ' + INK, padding: '4px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>{`${bp.name.toUpperCase()} · ${banner.e.side === 'me' ? slate.me.owner : slate.opp.owner}`}</div>
@@ -606,7 +608,7 @@ export function MatchupPage({
               </div>
             </div>
             {lanes.map((ln, i) => (
-              <div key={slate.lanes[i].me.id} style={{ display: 'grid', gridTemplateColumns: compact ? '58px minmax(0,1fr)' : '176px minmax(0,1fr)', gap: 8, alignItems: 'stretch' }}>
+              <div key={slate.lanes[i].me.id} style={{ display: 'grid', gridTemplateColumns: compact ? '58px minmax(0,1fr)' : '176px minmax(0,1fr)', gap: 8, alignItems: 'stretch', ...(bannerHost === i ? { position: 'relative', zIndex: 30 } as CSSProperties : null) }}>
                 <div style={{ background: '#fffaf0', border: '2px solid #1c1a22', borderRadius: 10, padding: '7px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '2px 6px', flexWrap: 'wrap' }}>
                     <div style={{ fontFamily: LILITA, fontSize: 17, lineHeight: 1, whiteSpace: 'nowrap' }}>{ln.slot}</div>
@@ -645,9 +647,9 @@ export function MatchupPage({
                   <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '50%' }}>{ln.meAv}</div>
                   <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%' }}>{ln.oppAv}</div>
                 </div>
+                {bannerHost === i ? bannerEl : null}
               </div>
             ))}
-            {bannerEl}
           </div>
 
           <div style={{ position: 'sticky', top: 14, background: '#fffaf0', border: '3px solid #1c1a22', borderRadius: 16, boxShadow: '0 6px 0 #1c1a22', display: 'flex', flexDirection: 'column', minWidth: 0, maxHeight: compact ? '380px' : 'calc(100vh - 150px)', overflow: 'hidden' }}>
