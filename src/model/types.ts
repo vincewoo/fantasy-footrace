@@ -1,6 +1,6 @@
 export type Side = 'me' | 'opp';
 
-export type Pos = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DST';
+export type Pos = 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DST' | 'DP';
 
 export type EventKind =
   | 'pass'
