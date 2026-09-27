@@ -4,7 +4,7 @@ import { snapshotAt } from '../model/derive';
 import { mockSlate } from '../sim/mock';
 import { EspnError } from '../espn/client';
 import { ConnectError, TeamPicker } from './Connect';
-import { MatchupPage } from './MatchupPage';
+import { laneKey, MatchupPage } from './MatchupPage';
 
 const HALF = mockSlate('Half PPR');
 const TAUNTS = ['TOO EASY', 'SCOREBOARD!', 'LUCKY BOUNCE', 'BENCH HIM', 'WAIT TILL SNF', 'GG NO RE'];
@@ -134,4 +134,29 @@ it('shows the real current time on the live clock instead of the timeline time',
 
   expect(m).toContain('SUN 5:15 AM');
   expect(m).not.toContain('1:38 PM');
+});
+
+it('builds a lane key from the side and lane', () => {
+  expect(laneKey('opp', 3)).toBe('opp3');
+  expect(laneKey('me', 0)).toBe('me0');
+});
+
+it('animates and marks OUT for ESPN-style ids that never equal their lane key', () => {
+  let n = 0;
+  const live = {
+    ...HALF,
+    lanes: HALF.lanes.map(lane => ({
+      slot: lane.slot,
+      me: { ...lane.me, id: String(4000000 + n++) },
+      opp: { ...lane.opp, id: String(4000000 + n++) },
+    })),
+    events: [{ id: 1, t: 0.01, side: 'opp' as const, lane: 2, kind: 'injury' as const, yds: 0, pts: 0, text: 'Henry ruled OUT' }],
+  };
+
+  const m = renderToStaticMarkup(<MatchupPage slate={live} />);
+  const count = (needle: string) => m.split(needle).length - 1;
+
+  expect(m).toContain('BAL · OUT');
+  expect(count('right:-8px')).toBe(1);
+  expect(count('grayscale(.85)')).toBe(1);
 });

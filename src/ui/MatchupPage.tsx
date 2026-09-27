@@ -73,6 +73,10 @@ function axisLeft(t: number): string {
   return Number((t * 100).toFixed(2)) + '%';
 }
 
+export function laneKey(side: Side, lane: number): string {
+  return `${side}${lane}`;
+}
+
 export interface MatchupPageProps {
   slate: Slate;
   slateMinutes?: number;
@@ -255,7 +259,7 @@ export function MatchupPage({
       if (fired.length) {
         anims = { ...anims };
         for (const e of fired) {
-          const key = `${e.side}${e.lane}`;
+          const key = laneKey(e.side, e.lane);
           anims[key] = e;
           firedAtRef.current[key] = Date.now();
           later(() => apply({ ...stateRef.current }), 2200);
@@ -324,10 +328,10 @@ export function MatchupPage({
   const finished = t >= 1 && liveT >= 1;
   const now = Date.now();
 
-  const info = (p: Player, ptsL: number) => ({
+  const info = (p: Player, ptsL: number, key: string) => ({
     name: p.name,
     ptsL: fmt(ptsL),
-    sub: `${p.team} · ${out.has(p.id) ? 'OUT' : slate.statusLabel(p, t)} · proj ${fmt(p.proj)}`,
+    sub: `${p.team} · ${out.has(key) ? 'OUT' : slate.statusLabel(p, t)} · proj ${fmt(p.proj)}`,
   });
 
   const act = (key: string): PlayEvent | null => {
@@ -356,8 +360,8 @@ export function MatchupPage({
       projOp: off > 50 ? 0 : 1,
       meProjL: fmt(me.proj),
       oppProjL: fmt(opp.proj),
-      me: info(me, a),
-      opp: info(opp, b),
+      me: info(me, a, laneKey('me', i)),
+      opp: info(opp, b, laneKey('opp', i)),
       meAv: (
         <Avatar
           player={me}
@@ -365,8 +369,8 @@ export function MatchupPage({
           side="me"
           lane={i}
           pts={a}
-          event={act(me.id)}
-          out={out.has(me.id)}
+          event={act(laneKey('me', i))}
+          out={out.has(laneKey('me', i))}
           scrubbing={scrubbing}
           showTag={showTags}
           scale={me.proj * 2}
@@ -381,8 +385,8 @@ export function MatchupPage({
           side="opp"
           lane={i}
           pts={b}
-          event={act(opp.id)}
-          out={out.has(opp.id)}
+          event={act(laneKey('opp', i))}
+          out={out.has(laneKey('opp', i))}
           scrubbing={scrubbing}
           showTag={showTags}
           scale={opp.proj * 2}
