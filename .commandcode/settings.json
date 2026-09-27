@@ -17,6 +17,7 @@
       "Edit(/vite.config.ts)",
       "Edit(/tsconfig*.json)",
       "Edit(/public/**)",
+      "Edit(/.github/**)",
       "Shell(git:*)",
       "Shell(sh tools/adw/gate.sh:*)",
       "Shell(sh *gate.sh:*)",
