@@ -11,3 +11,8 @@ dist/
 # Command Code: settings + hooks are shared; taste learning is per-machine
 .commandcode/taste/
 .commandcode/settings.local.json
+
+# Claude Design handoff package for the animation companion: local-only,
+# unpacked under reference/ for reading, never checked in
+Fantasy Football Animation Companion-handoff.zip
+reference/fantasy-football-animation-companion/
