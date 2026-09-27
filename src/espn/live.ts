@@ -9,11 +9,23 @@ export interface Actual {
   eventId?: string;
 }
 
+export type Note =
+  | 'tackle'
+  | 'assist'
+  | 'stuff'
+  | 'pd'
+  | 'ff'
+  | 'missFG'
+  | 'missXP'
+  | 'twoPt'
+  | 'fumTD';
+
 export interface Piece {
   kind: EventKind;
   yds: number;
   pts: number;
   adjust?: true;
+  note?: Note;
 }
 
 export interface PollState {
@@ -72,6 +84,8 @@ export function actualOf(player: any, week: number): Actual | null {
 interface StatRule {
   stat: string;
   kind: EventKind;
+  note?: Note;
+  extra?: (stats: Record<string, number>) => number;
 }
 
 const TD_RULES: StatRule[] = [
@@ -86,7 +100,11 @@ const TURNOVER_RULES: StatRule[] = [
 ];
 
 const KICK_RULES: StatRule[] = [
-  { stat: '74', kind: 'fg' },
+  {
+    stat: '74',
+    kind: 'fg',
+    extra: s => Math.max(0, num(s, '74') - num(s, '198') - num(s, '201')),
+  },
   { stat: '77', kind: 'fg' },
   { stat: '80', kind: 'fg' },
   { stat: '198', kind: 'fg' },
@@ -104,6 +122,27 @@ const DEFENSE_RULES: StatRule[] = [
   { stat: '102', kind: 'dtd' },
   { stat: '103', kind: 'dtd' },
   { stat: '104', kind: 'dtd' },
+];
+
+const TWO_PT_KIND: Partial<Record<Pos, EventKind>> = {
+  QB: 'pass',
+  RB: 'rush',
+  WR: 'catch',
+  TE: 'catch',
+};
+
+const IDP_RULES: StatRule[] = [
+  { stat: '108', kind: 'rush', note: 'tackle' },
+  { stat: '107', kind: 'rush', note: 'assist' },
+  { stat: '112', kind: 'rush', note: 'stuff' },
+  { stat: '113', kind: 'rush', note: 'pd' },
+  { stat: '106', kind: 'fumrec', note: 'ff' },
+  { stat: '85', kind: 'rush', note: 'missFG' },
+  { stat: '88', kind: 'rush', note: 'missXP' },
+  { stat: '19', kind: 'rush', note: 'twoPt' },
+  { stat: '26', kind: 'rush', note: 'twoPt' },
+  { stat: '44', kind: 'rush', note: 'twoPt' },
+  { stat: '63', kind: 'rushTD', note: 'fumTD' },
 ];
 
 const SPECIAL_RULES: StatRule[] = [...TD_RULES, ...TURNOVER_RULES, ...KICK_RULES, ...DEFENSE_RULES];
@@ -149,11 +188,16 @@ function runPieces(kind: EventKind, yards: number, points: number): Piece[] {
   }));
 }
 
-function unitPieces(kind: EventKind, units: number, points: number): Piece[] {
+function unitPieces(kind: EventKind, units: number, points: number, note?: Note): Piece[] {
   const n = Math.floor(units);
   if (n <= 0) return [];
 
-  return spread(points, n).map(pts => ({ kind, yds: 0, pts }));
+  return spread(points, n).map(pts => ({
+    kind,
+    yds: 0,
+    pts,
+    ...(note ? { note } : {}),
+  }));
 }
 
 export function decompose(pos: Pos, prev: Actual | null, cur: Actual): Piece[] {
@@ -188,7 +232,13 @@ export function decompose(pos: Pos, prev: Actual | null, cur: Actual): Piece[] {
 
   const specials: Piece[] = [];
   for (const rule of SPECIAL_RULES) {
-    specials.push(...unitPieces(rule.kind, num(dStats, rule.stat), num(dApplied, rule.stat)));
+    const units = rule.extra ? rule.extra(dStats) : num(dStats, rule.stat);
+    specials.push(...unitPieces(rule.kind, units, num(dApplied, rule.stat)));
+  }
+  for (const rule of IDP_RULES) {
+    if (Math.abs(num(dApplied, rule.stat)) < 0.005) continue;
+    const kind = rule.note === 'twoPt' ? TWO_PT_KIND[pos] ?? rule.kind : rule.kind;
+    specials.push(...unitPieces(kind, Math.min(num(dStats, rule.stat), 8), num(dApplied, rule.stat), rule.note));
   }
 
   const n = yardage.length;
@@ -247,6 +297,20 @@ export function describeLive(kind: EventKind, last: string, yds: number): string
     case 'fumrec': return `${last} recover a fumble`;
     case 'dtd': return `${last} defensive TD!`;
     default: return `${last} ruled OUT`;
+  }
+}
+
+export function describeNote(note: Note, name: string): string {
+  switch (note) {
+    case 'tackle': return `${name} makes a tackle`;
+    case 'assist': return `${name} assists on a tackle`;
+    case 'stuff': return `${name} stuffs the runner`;
+    case 'pd': return `${name} breaks up a pass`;
+    case 'ff': return `${name} forces a fumble`;
+    case 'missFG': return `${name} misses a field goal`;
+    case 'missXP': return `${name} misses the extra point`;
+    case 'twoPt': return `${name} converts the two-point try`;
+    case 'fumTD': return `${name} scoops it in for a TD!`;
   }
 }
 
@@ -449,7 +513,7 @@ export function eventsFromPoll(
 ): PlayEvent[] {
   const draft: {
     t: number; side: Side; lane: number; kind: EventKind; yds: number; pts: number;
-    name: string; pos: Pos; text?: string; adjust?: true;
+    name: string; pos: Pos; text?: string; adjust?: true; note?: Note;
   }[] = [];
 
   slate.lanes.forEach((lane, i) => {
@@ -487,7 +551,7 @@ export function eventsFromPoll(
         const t = first
           ? w0 + ((j + 1) / (n + 1)) * (Math.min(Math.max(tNow, w0), w1) - w0)
           : Math.max(tNow, w0) + (j + 1) * 1e-6;
-        draft.push({ t, side, lane: i, kind: piece.kind, yds: piece.yds, pts: piece.pts, name, pos: player.pos, adjust: piece.adjust });
+        draft.push({ t, side, lane: i, kind: piece.kind, yds: piece.yds, pts: piece.pts, name, pos: player.pos, adjust: piece.adjust, note: piece.note });
       });
     }
   });
@@ -502,7 +566,12 @@ export function eventsFromPoll(
     kind: e.kind,
     yds: e.yds,
     pts: e.pts,
-    text: e.text ?? (e.adjust ? describeAdjust(e.pos, e.name, e.pts) : describeLive(e.kind, e.name, e.yds)),
+    text: e.text
+      ?? (e.adjust
+        ? describeAdjust(e.pos, e.name, e.pts)
+        : e.note
+          ? describeNote(e.note, e.name)
+          : describeLive(e.kind, e.name, e.yds)),
   }));
 }
 

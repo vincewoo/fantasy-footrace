@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import type { EventKind, PlayEvent, Pos, Slate } from '../model/types';
-import { buildSlate } from './slate';
+import { buildSlate, posOf } from './slate';
 import { scoresAgainst, yardsAgainst } from './summary';
 import { buildTimeline } from './timeline';
 import {
@@ -12,6 +12,7 @@ import {
   decompose,
   describeAdjust,
   describeLive,
+  describeNote,
   dstTiers,
   eventsFromPoll,
   readPoll,
@@ -28,6 +29,7 @@ const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtu
 const league = fixture('week3-pregame.json');
 const season = fixture('season-2026-proteams.json');
 const liveMatchup = fixture('matchup-week3-live-1047.json');
+const liveMatchup1141 = fixture('matchup-week3-live-1141.json');
 const summaryFixture = fixture('summary-401872950-live.json');
 const TZ = 'America/New_York';
 const WEEK = 3;
@@ -148,10 +150,11 @@ describe('decompose', () => {
     const yards = pieces.map(p => p.yds).join('/');
     const points = pieces.map(p => p.pts).join('/');
 
-    expect(pieces).toHaveLength(8);
-    expect(pieces.every(p => p.kind === 'catch')).toBe(true);
-    expect(yards).toBe('25/25/24/24/24/24/24/24');
-    expect(points).toBe('2.99/2.99/2.99/2.99/2.99/2.99/2.99/3.72');
+    expect(pieces).toHaveLength(9);
+    expect(pieces[4]).toMatchObject({ kind: 'rush', note: 'tackle' });
+    expect(pieces.every((p, i) => (i === 4 ? true : p.kind === 'catch'))).toBe(true);
+    expect(yards).toBe('25/25/24/24/0/24/24/24/24');
+    expect(points).toBe('2.99/2.99/2.99/2.99/0.75/2.99/2.99/2.99/2.97');
     expect(sumOf(pieces)).toBe(24.65);
   });
 
@@ -324,7 +327,7 @@ describe('eventsFromPoll for the first observation', () => {
     expect(injury.pts).toBe(0);
     expect(injury.yds).toBe(0);
     expect(injury.t).toBe(slate14.lanes[injury.lane][injury.side].window[0]);
-    expect(events14).toHaveLength(9);
+    expect(events14).toHaveLength(10);
     expect(events14.filter(e => e.side === 'me')).toEqual(injuries);
   });
 });
@@ -453,12 +456,133 @@ describe('decompose for defense', () => {
   });
 
   it('leaves offense bonuses folded into the last piece', () => {
-    const pieces = decompose('WR', null, actualNamed('Drake London'));
+    const pieces = decompose('WR', null, { total: 3.3, stats: { '42': 30 }, applied: { '42': 3, '999': 0.3 } });
     const last = pieces[pieces.length - 1];
 
-    expect(last.pts).toBe(3.72);
+    expect(pieces).toHaveLength(2);
+    expect(last.kind).toBe('catch');
+    expect(last.pts).toBe(1.8);
     expect(last.adjust).toBeUndefined();
     expect(pieces.some(p => p.adjust !== undefined)).toBe(false);
+    expect(sumOf(pieces)).toBe(3.3);
+  });
+});
+
+describe('describeNote', () => {
+  it('writes one line per note', () => {
+    expect(describeNote('tackle', 'Warner')).toBe('Warner makes a tackle');
+    expect(describeNote('assist', 'Warner')).toBe('Warner assists on a tackle');
+    expect(describeNote('stuff', 'Warner')).toBe('Warner stuffs the runner');
+    expect(describeNote('pd', 'Warner')).toBe('Warner breaks up a pass');
+    expect(describeNote('ff', 'Warner')).toBe('Warner forces a fumble');
+    expect(describeNote('missFG', 'Aubrey')).toBe('Aubrey misses a field goal');
+    expect(describeNote('missXP', 'Aubrey')).toBe('Aubrey misses the extra point');
+    expect(describeNote('twoPt', 'Love')).toBe('Love converts the two-point try');
+    expect(describeNote('fumTD', 'Adams')).toBe('Adams scoops it in for a TD!');
+  });
+});
+
+describe('decompose for the 11:41 live capture', () => {
+  const playerFrom1141 = (name: string): any =>
+    liveMatchup1141.schedule
+      .flatMap((m: any) => [m.home, m.away])
+      .flatMap((side: any) => side.rosterForCurrentScoringPeriod.entries)
+      .map((e: any) => e.playerPoolEntry.player)
+      .find((p: any) => p.fullName === name);
+  const piecesFor = (name: string): Piece[] => {
+    const player = playerFrom1141(name);
+    return decompose(posOf(player.defaultPositionId), null, actualOf(player, WEEK)!);
+  };
+  const tagged = (pieces: Piece[]): string[] =>
+    pieces.map(p => `${p.kind} ${p.yds} ${p.pts}${p.note ? ` ${p.note}` : ''}`);
+
+  it('gives Greg Rousseau his own tackle and assist pieces', () => {
+    expect(tagged(piecesFor('Greg Rousseau'))).toEqual([
+      'sack 0 2.5',
+      'rush 0 0.75 tackle', 'rush 0 0.75 tackle', 'rush 0 0.75 tackle', 'rush 0 0.75 tackle',
+      'rush 0 0.1 assist',
+    ]);
+    expect(sumOf(piecesFor('Greg Rousseau'))).toBe(5.6);
+  });
+
+  it('gives Will Anderson Jr. his forced fumble as a fumble-recovery piece', () => {
+    expect(tagged(piecesFor('Will Anderson Jr.'))).toEqual([
+      'sack 0 2.5', 'fumrec 0 3', 'rush 0 0.75 tackle', 'rush 0 0.1 assist', 'fumrec 0 2 ff',
+    ]);
+    expect(sumOf(piecesFor('Will Anderson Jr.'))).toBe(8.35);
+  });
+
+  it('spreads Jordyn Brooks’ five assisted tackles', () => {
+    expect(tagged(piecesFor('Jordyn Brooks'))).toEqual([
+      'rush 0 0.75 tackle',
+      'rush 0 0.1 assist', 'rush 0 0.1 assist', 'rush 0 0.1 assist', 'rush 0 0.1 assist', 'rush 0 0.1 assist',
+    ]);
+    expect(sumOf(piecesFor('Jordyn Brooks'))).toBe(1.25);
+  });
+
+  it('lands DJ Moore’s solo tackle as its own piece', () => {
+    expect(tagged(piecesFor('DJ Moore'))).toEqual([
+      'catch 13 1.97', 'rush 0 0.75 tackle', 'catch 13 1.97', 'catch 13 1.96',
+    ]);
+    expect(sumOf(piecesFor('DJ Moore'))).toBe(6.65);
+  });
+
+  it('counts a 50-yard field goal once, as both 74 and 198 report it', () => {
+    const pieces = piecesFor('Evan McPherson');
+
+    expect(tagged(pieces)).toEqual(['fg 0 4', 'xp 0 1', 'xp 0 1']);
+    expect(pieces.filter(p => p.kind === 'fg')).toHaveLength(1);
+    expect(sumOf(pieces)).toBe(6);
+  });
+
+  it('gives a missed field goal its own negative piece', () => {
+    expect(tagged(piecesFor('Cam Little'))).toEqual([
+      'xp 0 1', 'xp 0 1', 'rush 0 -1 missFG',
+    ]);
+    expect(sumOf(piecesFor('Cam Little'))).toBe(1);
+  });
+
+  it('counts a made short field goal and a miss for the same kicker', () => {
+    expect(tagged(piecesFor('Cameron Dicker'))).toEqual([
+      'fg 0 3', 'xp 0 1', 'rush 0 -1 missFG',
+    ]);
+    expect(sumOf(piecesFor('Cameron Dicker'))).toBe(3);
+  });
+
+  it('makes a two-point try the position’s own kind', () => {
+    const two = { total: 2, stats: { '19': 1 }, applied: { '19': 2 } };
+
+    expect(decompose('QB', null, two)).toEqual([{ kind: 'pass', yds: 0, pts: 2, note: 'twoPt' }]);
+    expect(decompose('RB', null, { total: 2, stats: { '26': 1 }, applied: { '26': 2 } })).toEqual([
+      { kind: 'rush', yds: 0, pts: 2, note: 'twoPt' },
+    ]);
+    expect(decompose('TE', null, { total: 2, stats: { '44': 1 }, applied: { '44': 2 } })).toEqual([
+      { kind: 'catch', yds: 0, pts: 2, note: 'twoPt' },
+    ]);
+    expect(decompose('K', null, { total: 2, stats: { '19': 1 }, applied: { '19': 2 } })).toEqual([
+      { kind: 'rush', yds: 0, pts: 2, note: 'twoPt' },
+    ]);
+  });
+
+  it('makes an offensive fumble recovery for a TD a rushing touchdown piece', () => {
+    expect(decompose('WR', null, { total: 6, stats: { '63': 1 }, applied: { '63': 6 } })).toEqual([
+      { kind: 'rushTD', yds: 0, pts: 6, note: 'fumTD' },
+    ]);
+  });
+
+  it('skips a stat the position scores zero, so a D/ST forced fumble is silent', () => {
+    expect(decompose('DST', null, { total: 0, stats: { '106': 1 }, applied: { '106': 0 } })).toEqual([]);
+    expect(decompose('DST', null, { total: 1, stats: { '99': 1, '106': 1 }, applied: { '99': 1, '106': 0 } })).toEqual([
+      { kind: 'sack', yds: 0, pts: 1 },
+    ]);
+  });
+
+  it('caps a new special at eight pieces', () => {
+    const pieces = decompose('RB', null, { total: 6, stats: { '108': 12 }, applied: { '108': 6 } });
+
+    expect(pieces).toHaveLength(8);
+    expect(pieces.every(p => p.note === 'tackle')).toBe(true);
+    expect(sumOf(pieces)).toBe(6);
   });
 });
 
@@ -531,6 +655,21 @@ describe('eventsFromPoll for the defense feed', () => {
     expect(sack[0].text.startsWith('Bengals D/ST ')).toBe(true);
     expect(ruledOut).toHaveLength(1);
     expect(ruledOut[0]).toMatchObject({ kind: 'injury', text: 'Bengals D/ST ruled OUT' });
+  });
+
+  it('writes a note piece’s text with the D/ST full name and a player’s last name', () => {
+    const events = eventsFromPoll(defSlate, null, {
+      actuals: {
+        '-16004': { total: 0.75, stats: { '108': 1 }, applied: { '108': 0.75 } },
+        '1234': { total: 2, stats: { '19': 1 }, applied: { '19': 2 } },
+      },
+      out: [],
+    }, 1, 1);
+
+    expect(events.map(e => [e.kind, e.pts, e.text])).toEqual([
+      ['rush', 0.75, 'Bengals D/ST makes a tackle'],
+      ['pass', 2, 'Love converts the two-point try'],
+    ]);
   });
 });
 
