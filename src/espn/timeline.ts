@@ -69,7 +69,7 @@ export function buildTimeline(kickoffsMs: number[], timeZone: string): Timeline 
     const at = t * totalMs;
     for (let i = 0; i < windows.length; i += 1) {
       const w = windows[i];
-      if (at <= before[i] + w.end - w.start) return w.start + (at - before[i]);
+      if (at < before[i] + w.end - w.start) return w.start + (at - before[i]);
     }
     return endMs;
   }

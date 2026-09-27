@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { espnBase, savedKey } from './espn/client';
 import { loadLeagueInfo, loadLiveSlate, type LeagueInfo, type LiveSlate } from './espn/load';
+import { timeLabel } from './espn/timeline';
 import { mockSlate } from './sim/mock';
 import { connectTalk, talkUrl, type TalkConnection } from './talk/socket';
 import { ConnectError, ModeSwitch, TeamPicker } from './ui/Connect';
@@ -129,6 +130,7 @@ export default function App() {
   }, [mode, info, picked]);
 
   const liveNow = useCallback(() => (liveRef.current ? liveRef.current.toT(Date.now()) : 0), []);
+  const liveClock = useCallback(() => timeLabel(Date.now(), TZ, true), []);
   const sendTaunt = useCallback((text: string) => talkRef.current?.send(text) ?? false, []);
   const talk = room ? { send: sendTaunt, connected, oppWatching } : null;
 
@@ -181,6 +183,7 @@ export default function App() {
       subtitle={`WEEK ${info.week} · ${info.name.toUpperCase()}`}
       headerExtra={switcher}
       liveNow={liveNow}
+      liveClock={liveClock}
       storageKey="ff_live_v1"
       talk={talk}
       remoteTaunt={remoteTaunt}

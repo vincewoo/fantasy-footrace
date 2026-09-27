@@ -126,3 +126,12 @@ it('keeps the demo free of the talk box and the room status', () => {
   expect(m).not.toContain('SAY SOMETHING');
   expect(m).not.toContain('TALK OFFLINE');
 });
+
+it('shows the real current time on the live clock instead of the timeline time', () => {
+  const m = renderToStaticMarkup(
+    <MatchupPage slate={HALF} liveNow={() => 0.06} liveClock={() => 'SUN 5:15 AM'} />,
+  );
+
+  expect(m).toContain('SUN 5:15 AM');
+  expect(m).not.toContain('1:38 PM');
+});

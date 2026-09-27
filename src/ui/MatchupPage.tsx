@@ -80,6 +80,7 @@ export interface MatchupPageProps {
   subtitle?: string;
   headerExtra?: ReactNode;
   liveNow?: () => number;
+  liveClock?: () => string;
   storageKey?: string;
   talk?: { send(text: string): boolean; connected: boolean; oppWatching: boolean } | null;
   remoteTaunt?: { id: number; text: string } | null;
@@ -92,6 +93,7 @@ export function MatchupPage({
   subtitle = 'WEEK 4 · SUNDAY SLATE · BACKYARD LEAGUE',
   headerExtra,
   liveNow,
+  liveClock,
   storageKey = STORAGE_KEY,
   talk = null,
   remoteTaunt = null,
@@ -430,7 +432,7 @@ export function MatchupPage({
     );
   }
 
-  const clock = final ? 'FINAL' : slate.clockLabel(t);
+  const clock = final ? 'FINAL' : liveClock && !isReplay && t < 1 ? liveClock() : slate.clockLabel(t);
 
   return (
     <div ref={rootRef} style={{ minHeight: '100vh', background: '#efe8d6', color: '#1c1a22', fontFamily: "'Nunito', sans-serif", padding: '16px 14px 120px' }}>

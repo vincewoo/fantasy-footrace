@@ -109,3 +109,19 @@ describe('buildTimeline without kickoffs', () => {
     expect(() => buildTimeline([], TZ)).toThrow('no NFL kickoffs for this week');
   });
 });
+
+describe('buildTimeline gap boundaries', () => {
+  const tl = buildTimeline(KICKOFFS, TZ);
+
+  it('sends a gap t to the next window start, not the previous window end', () => {
+    expect(tl.toMs(tl.toT(1790400000000))).toBe(1790528400000);
+    expect(tl.clockLabel(tl.toT(1790400000000))).toBe('SUN 1:00 PM');
+    expect(tl.toMs(tl.toT(1790307900000))).toBe(1790528400000);
+  });
+
+  it('keeps times inside a window and the clamps unchanged', () => {
+    expect(tl.toMs(tl.toT(1790530000000))).toBe(1790530000000);
+    expect(tl.toMs(1)).toBe(1790653500000);
+    expect(tl.toMs(0)).toBe(1790295300000);
+  });
+});
