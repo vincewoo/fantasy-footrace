@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
+import { fmt, snapshotAt } from '../model/derive';
 import { LEAGUE_ID, SEASON } from './client';
-import { loadLeagueInfo, loadLiveSlate } from './load';
+import { loadLeagueInfo, loadLiveSlate, pollLive } from './load';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtures', name), 'utf8'));
@@ -86,4 +87,117 @@ it('reports the room identity of the viewer\u2019s matchup', async () => {
   expect(result.oppTeamId).toBe(10);
   expect(result.week).toBe(3);
   expect(result.season).toBe(2026);
+});
+
+const NOW = 1790528400000;
+const TZ = 'America/New_York';
+
+function matchupFetch(schedule: unknown): { calls: Call[]; fetchImpl: typeof fetch } {
+  const calls: Call[] = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    return fakeResponse({ schedule });
+  };
+  return { calls, fetchImpl };
+}
+
+const scheduleCopy = (): any => JSON.parse(JSON.stringify(league.schedule));
+
+function patchPlayer(schedule: any, name: string, edit: (actual: any) => void): void {
+  for (const side of ['home', 'away']) {
+    for (const entry of schedule.flatMap((m: any) => [m[side].rosterForCurrentScoringPeriod.entries])) {
+      const player = entry.map((e: any) => e.playerPoolEntry.player).find((p: any) => p.fullName === name);
+      if (!player) continue;
+      edit(
+        player.stats.find(
+          (s: any) => s.statSourceId === 0 && s.statSplitTypeId === 1 && s.scoringPeriodId === 3,
+        ),
+      );
+    }
+  }
+}
+
+it('seeds the events ESPN’s actual points describe for games already played', async () => {
+  const { fetchImpl } = fakeFetch();
+  const info = await loadLeagueInfo({ fetchImpl });
+
+  const result = await loadLiveSlate(info, 6, { timeZone: TZ, fetchImpl, now: NOW });
+  const tNow = result.toT(NOW);
+  const snap = snapshotAt(result.slate, tNow);
+
+  expect(result.slate.events).toHaveLength(21);
+  expect(result.slate.events.map(e => e.id)).toEqual(Array.from({ length: 21 }, (_, i) => i + 1));
+  expect(result.slate.events.every(e => e.side === 'me')).toBe(true);
+  expect(fmt(snap.totals.me)).toBe('41.6');
+  expect(fmt(snap.totals.opp)).toBe('0.0');
+
+  const first = result.slate.events[0];
+  expect([first.kind, first.text]).toEqual(['pass', 'Love completes 39 yds']);
+  expect(Number(first.t.toFixed(6))).toBe(0.016746);
+
+  expect(result.poll.actuals['4036378'].total).toBe(18.48);
+});
+
+it('seeds a ruled-out starter with one injury event at his kickoff', async () => {
+  const { fetchImpl } = fakeFetch();
+  const info = await loadLeagueInfo({ fetchImpl });
+
+  const result = await loadLiveSlate(info, 14, { timeZone: TZ, fetchImpl, now: NOW });
+
+  const injuries = result.slate.events.filter(e => e.kind === 'injury');
+  expect(injuries).toHaveLength(1);
+
+  const [injury] = injuries;
+  const lane = result.slate.lanes[injury.lane];
+  expect([injury.side, injury.text, injury.pts, injury.yds]).toEqual(['me', 'Lloyd ruled OUT', 0, 0]);
+  expect(injury.t).toBe(lane[injury.side].window[0]);
+  expect(injury.t).toBe(result.toT(NOW));
+});
+
+it('polls the matchup again and adds nothing when the scores are unchanged', async () => {
+  const { fetchImpl } = fakeFetch();
+  const info = await loadLeagueInfo({ fetchImpl });
+  const live = await loadLiveSlate(info, 6, { timeZone: TZ, fetchImpl, now: NOW });
+
+  const { calls, fetchImpl: pollFetch } = matchupFetch(league.schedule);
+  const next = await pollLive(info, live, { fetchImpl: pollFetch, now: NOW });
+
+  expect(calls).toHaveLength(1);
+  expect(calls[0].url).toBe(
+    `/espn${LEAGUE_PATH}?view=mMatchupScore&view=mScoreboard&view=mLiveScoring&scoringPeriodId=3`,
+  );
+  expect(headersOf(calls[0])['X-Fantasy-Filter']).toBe(
+    '{"schedule":{"filterMatchupPeriodIds":{"value":[3]}}}',
+  );
+  expect(next.slate.events).toHaveLength(21);
+  expect(next.poll).toEqual(live.poll);
+});
+
+it('turns the points scored since the last poll into events at the current time', async () => {
+  const { fetchImpl } = fakeFetch();
+  const info = await loadLeagueInfo({ fetchImpl });
+  const live = await loadLiveSlate(info, 6, { timeZone: TZ, fetchImpl, now: NOW });
+  const tNow = live.toT(NOW);
+
+  const schedule = scheduleCopy();
+  patchPlayer(schedule, 'Jordan Love', (actual: any) => {
+    actual.stats['3'] = 342;
+    actual.appliedStats['3'] = 13.68;
+    actual.appliedTotal = 19.68;
+  });
+  const { fetchImpl: pollFetch } = matchupFetch(schedule);
+
+  const next = await pollLive(info, live, { fetchImpl: pollFetch, now: NOW });
+  const added = next.slate.events.slice(21);
+
+  expect(added).toHaveLength(2);
+  expect(added.map(e => [e.id, e.kind, e.yds, e.pts])).toEqual([
+    [22, 'pass', 15, 0.6],
+    [23, 'pass', 15, 0.6],
+  ]);
+  expect(added.every(e => e.t > tNow && e.t < tNow + 1e-5)).toBe(true);
+  expect(added.every(e => e.text === 'Love completes 15 yds')).toBe(true);
+  expect(next.slate.events.slice(0, 21)).toEqual(live.slate.events);
+  expect(next.poll.actuals['4036378'].total).toBe(19.68);
+  expect(fmt(snapshotAt(next.slate, tNow + 1e-5).totals.me)).toBe('42.8');
 });

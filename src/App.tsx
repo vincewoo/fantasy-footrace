@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { espnBase, savedKey } from './espn/client';
-import { loadLeagueInfo, loadLiveSlate, type LeagueInfo, type LiveSlate } from './espn/load';
+import { loadLeagueInfo, loadLiveSlate, pollLive, type LeagueInfo, type LiveSlate } from './espn/load';
 import { timeLabel } from './espn/timeline';
 import { mockSlate } from './sim/mock';
 import { connectTalk, talkUrl, type TalkConnection } from './talk/socket';
@@ -10,6 +10,8 @@ import { MatchupPage } from './ui/MatchupPage';
 type Mode = 'live' | 'demo';
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const POLL_MS = 15000;
 
 function readMode(): Mode {
   try {
@@ -60,6 +62,7 @@ export default function App() {
 
   const demo = useMemo(() => mockSlate('Half PPR'), []);
   const liveRef = useRef<LiveSlate | null>(null);
+  const pollingRef = useRef(false);
   const talkRef = useRef<TalkConnection | null>(null);
   const tauntRef = useRef(0);
   const picked = info && team !== null && info.teams.some(t => t.id === team) ? team : null;
@@ -89,6 +92,7 @@ export default function App() {
     setError(null);
     setLive(null);
     liveRef.current = null;
+    pollingRef.current = false;
     setRoom(false);
     setConnected(false);
     setOppWatching(false);
@@ -126,6 +130,45 @@ export default function App() {
       ignore = true;
       talkRef.current?.close();
       talkRef.current = null;
+    };
+  }, [mode, info, picked]);
+
+  useEffect(() => {
+    if (mode !== 'live' || !info || picked === null) return;
+    let ignore = false;
+
+    const pollOne = () => {
+      const current = liveRef.current;
+      if (!current || pollingRef.current) return;
+
+      const tNow = current.toT(Date.now());
+      const inGame = current.slate.lanes.some(lane =>
+        (['me', 'opp'] as const).some(side => {
+          const p = lane[side];
+          return p.id !== 'empty' && p.window[0] < tNow && tNow < p.window[1];
+        }),
+      );
+      if (!inGame) return;
+
+      pollingRef.current = true;
+      pollLive(info, current)
+        .then(next => {
+          if (ignore) return;
+          liveRef.current = next;
+          setLive(next);
+        })
+        .catch(() => {
+          // a failed poll keeps the current slate and is retried on the next tick
+        })
+        .finally(() => {
+          pollingRef.current = false;
+        });
+    };
+
+    const timer = setInterval(pollOne, POLL_MS);
+    return () => {
+      ignore = true;
+      clearInterval(timer);
     };
   }, [mode, info, picked]);
 
