@@ -1,9 +1,21 @@
 import react from '@vitejs/plugin-react';
+import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
+import { LEAGUE_ID } from './src/espn/client';
+import { espnProxy, PROXY_PREFIX } from './src/espn/proxy';
 
-export default defineConfig({
-  plugins: [react()],
-  test: {
-    environment: 'node',
-  },
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+
+  return {
+    plugins: [react()],
+    test: {
+      environment: 'node',
+    },
+    server: {
+      proxy: {
+        [PROXY_PREFIX]: espnProxy(env, LEAGUE_ID),
+      },
+    },
+  };
 });
