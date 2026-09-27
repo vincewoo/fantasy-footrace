@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { espnBase, savedKey } from './espn/client';
 import { loadLeagueInfo, loadLiveSlate, pollLive, type LeagueInfo, type LiveSlate } from './espn/load';
+import { fetchScoreboard, statusesByTeam, withGameStatus, type GameStatus } from './espn/scoreboard';
 import { timeLabel } from './espn/timeline';
 import { mockSlate } from './sim/mock';
 import { connectTalk, talkUrl, type TalkConnection } from './talk/socket';
@@ -54,6 +55,7 @@ export default function App() {
   const [info, setInfo] = useState<LeagueInfo | null>(null);
   const [team, setTeam] = useState<number | null>(readTeam);
   const [live, setLive] = useState<LiveSlate | null>(null);
+  const [statuses, setStatuses] = useState<Record<string, GameStatus>>({});
   const [error, setError] = useState<unknown>(null);
   const [room, setRoom] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -93,6 +95,7 @@ export default function App() {
     setLive(null);
     liveRef.current = null;
     pollingRef.current = false;
+    setStatuses({});
     setRoom(false);
     setConnected(false);
     setOppWatching(false);
@@ -102,6 +105,14 @@ export default function App() {
         if (ignore) return;
         liveRef.current = next;
         setLive(next);
+
+        fetchScoreboard(next.season, next.week)
+          .then(board => {
+            if (!ignore) setStatuses(statusesByTeam(board));
+          })
+          .catch(() => {
+            // the timeline labels stand in until a scoreboard read succeeds
+          });
 
         const url = talkUrl(espnBase(), {
           season: next.season,
@@ -151,7 +162,7 @@ export default function App() {
       if (!inGame) return;
 
       pollingRef.current = true;
-      pollLive(info, current)
+      const matchup = pollLive(info, current)
         .then(next => {
           if (ignore) return;
           liveRef.current = next;
@@ -159,10 +170,19 @@ export default function App() {
         })
         .catch(() => {
           // a failed poll keeps the current slate and is retried on the next tick
-        })
-        .finally(() => {
-          pollingRef.current = false;
         });
+
+      const board = fetchScoreboard(current.season, current.week)
+        .then(scoreboard => {
+          if (!ignore) setStatuses(statusesByTeam(scoreboard));
+        })
+        .catch(() => {
+          // a failed scoreboard read keeps the previous statuses
+        });
+
+      Promise.all([matchup, board]).finally(() => {
+        pollingRef.current = false;
+      });
     };
 
     const timer = setInterval(pollOne, POLL_MS);
@@ -174,6 +194,10 @@ export default function App() {
 
   const liveNow = useCallback(() => (liveRef.current ? liveRef.current.toT(Date.now()) : 0), []);
   const liveClock = useCallback(() => timeLabel(Date.now(), TZ, true), []);
+  const gameSlate = useMemo(
+    () => (live ? withGameStatus(live.slate, statuses, live.toT(Date.now())) : null),
+    [live?.slate, statuses],
+  );
   const sendTaunt = useCallback((text: string) => talkRef.current?.send(text) ?? false, []);
   const talk = room ? { send: sendTaunt, connected, oppWatching } : null;
 
@@ -217,12 +241,12 @@ export default function App() {
     );
   }
 
-  if (!live) return <Loading />;
+  if (!live || gameSlate === null) return <Loading />;
 
   return (
     <MatchupPage
       key={`live-${picked}`}
-      slate={live.slate}
+      slate={gameSlate}
       subtitle={`WEEK ${info.week} · ${info.name.toUpperCase()}`}
       headerExtra={switcher}
       liveNow={liveNow}
