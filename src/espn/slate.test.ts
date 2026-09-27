@@ -164,7 +164,7 @@ describe('listTeams', () => {
     const teams = listTeams(league);
     expect(teams).toHaveLength(12);
     expect(teams.map(t => t.id)).toEqual([1, 2, 3, 6, 9, 10, 11, 13, 14, 15, 16, 17]);
-    expect(teams[0]).toEqual({ id: 1, name: 'Somethings Gotta Gibbs', owner: 'tejas' });
+    expect(teams[0]).toEqual({ id: 1, name: 'Somethings Gotta Gibbs', owner: 'tejas & Vince' });
     expect(teams[5]).toEqual({ id: 10, name: 'REAPR Sleepers', owner: 'Ian' });
   });
 
@@ -360,5 +360,58 @@ describe('buildSlate without a real season response', () => {
     expect(() => buildSlate(league, { proTeams: [] }, 1, { timeZone: TZ })).toThrow(
       'season response has no settings.proTeams',
     );
+  });
+});
+
+describe('co-GM owners', () => {
+  it('lists every owner of a co-GM team joined with &', () => {
+    const owners = new Map(listTeams(league).map(t => [t.id, t.owner]));
+    expect(owners.get(1)).toBe('tejas & Vince');
+    expect(owners.get(6)).toBe('Emma & Emily');
+    expect(owners.get(9)).toBe('Gene & Alex');
+    expect(owners.get(11)).toBe('Brian & Swapnil');
+    expect(owners.get(17)).toBe('Jezmin & Julia');
+  });
+
+  it('keeps a single-owner team at one name', () => {
+    const owners = new Map(listTeams(league).map(t => [t.id, t.owner]));
+    expect(owners.get(10)).toBe('Ian');
+    expect(owners.get(2)).toBe('Nazareth');
+  });
+
+  it('upper-cases every owner on the opponent side of the slate', () => {
+    expect(buildSlate(league, season, 17, { timeZone: TZ }).opp.owner).toBe('EMMA & EMILY');
+    expect(buildSlate(league, season, 10, { timeZone: TZ }).opp.owner).toBe('TEJAS & VINCE');
+    expect(buildSlate(league, season, 1, { timeZone: TZ }).opp.owner).toBe('IAN');
+  });
+
+  it('lists the viewer side as YOU', () => {
+    expect(buildSlate(league, season, 17, { timeZone: TZ }).me.owner).toBe('YOU');
+  });
+
+  const synth = (team: Record<string, unknown>): string =>
+    listTeams({
+      members: [
+        { id: 's1', firstName: 'Ann', displayName: 'ann' },
+        { id: 's2', firstName: 'Bob', displayName: 'bob' },
+      ],
+      teams: [{ id: 1, name: 'Team', ...team }],
+    })[0].owner;
+
+  it('puts the primary owner first when he is listed second', () => {
+    expect(synth({ primaryOwner: 's2', owners: ['s1', 's2'] })).toBe('Bob & Ann');
+  });
+
+  it('shows a SWID listed twice only once', () => {
+    expect(synth({ primaryOwner: 's1', owners: ['s1', 's1'] })).toBe('Ann');
+    expect(synth({ primaryOwner: 's1', owners: ['s2', 's1'] })).toBe('Ann & Bob');
+  });
+
+  it('skips owners missing from members and returns empty when none are found', () => {
+    expect(synth({ primaryOwner: 's1', owners: ['s9', 's2'] })).toBe('Ann & Bob');
+    expect(synth({ primaryOwner: 's9', owners: ['s8'] })).toBe('');
+    expect(synth({ primaryOwner: 's9', owners: ['s2'] })).toBe('Bob');
+    expect(synth({ owners: ['s2'] })).toBe('Bob');
+    expect(synth({})).toBe('');
   });
 });

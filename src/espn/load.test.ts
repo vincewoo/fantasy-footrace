@@ -45,7 +45,7 @@ it('loads the league info from one mTeam+mSettings call', async () => {
   expect(info.week).toBe(3);
   expect(info.name).toBe('#fpandfriends');
   expect(info.teams).toHaveLength(12);
-  expect(info.teams[0]).toEqual({ id: 1, name: 'Somethings Gotta Gibbs', owner: 'tejas' });
+  expect(info.teams[0]).toEqual({ id: 1, name: 'Somethings Gotta Gibbs', owner: 'tejas & Vince' });
 });
 
 it('loads the live slate from the matchup, the player pool and the real kickoffs', async () => {

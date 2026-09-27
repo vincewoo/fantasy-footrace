@@ -223,3 +223,43 @@ it('defaults sound to on when localStorage throws', async () => {
   expect(readSoundPref()).toBe(true);
   clearStore();
 });
+
+const CO_GM = { ...HALF, opp: { ...HALF.opp, owner: 'EMMA & EMILY' } };
+
+it('uses a plural verb for co-GMs who are watching', () => {
+  const m = renderToStaticMarkup(
+    <MatchupPage
+      slate={CO_GM}
+      liveNow={() => 0.06}
+      talk={{ connected: true, oppWatching: true, send: () => true }}
+    />,
+  );
+
+  expect(m).toContain('EMMA &amp; EMILY ARE WATCHING');
+  expect(m).not.toContain('EMMA &amp; EMILY IS WATCHING');
+});
+
+it('uses a plural verb for co-GMs who are away', () => {
+  const m = renderToStaticMarkup(
+    <MatchupPage
+      slate={CO_GM}
+      liveNow={() => 0.06}
+      talk={{ connected: true, oppWatching: false, send: () => true }}
+    />,
+  );
+
+  expect(m).toMatch(/EMMA &amp; EMILY AREN(&#x27;|')T HERE/);
+  expect(m).not.toContain('EMMA &amp; EMILY ISN');
+});
+
+it('keeps a singular verb for a single owner', () => {
+  const m = renderToStaticMarkup(
+    <MatchupPage
+      slate={HALF}
+      liveNow={() => 0.06}
+      talk={{ connected: true, oppWatching: false, send: () => true }}
+    />,
+  );
+
+  expect(m).toMatch(/DAVE ISN(&#x27;|')T HERE/);
+});

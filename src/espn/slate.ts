@@ -63,9 +63,13 @@ const HAIR_COLORS = ['#1d1411', '#5a3a22', '#7a5534', '#d4a650', '#2a1d15'];
 const PRO_BY_ABBREV = new Map(Object.values(PRO_TEAMS).map(t => [t.abbrev, t]));
 
 function ownerOf(members: Map<string, any>, team: any): string {
-  const member = members.get(team?.primaryOwner);
-  if (!member) return '';
-  return member.firstName || member.displayName;
+  const ids: string[] = [team?.primaryOwner, ...(team?.owners ?? [])].filter((id: any) => !!id);
+  const names: string[] = [];
+  for (const id of new Set(ids)) {
+    const member = members.get(id);
+    if (member) names.push(member.firstName || member.displayName);
+  }
+  return names.join(' & ');
 }
 
 function lookOf(id: number, pos: Pos): Pick<Player, 'skin' | 'hair' | 'hc' | 'beard'> {

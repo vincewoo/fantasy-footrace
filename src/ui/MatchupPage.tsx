@@ -566,7 +566,9 @@ export function MatchupPage({
               />
               <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566' }}>
                 {talk && talk.connected
-                  ? talk.oppWatching ? `${slate.opp.owner} IS WATCHING` : `${slate.opp.owner} ISN'T HERE`
+                  ? slate.opp.owner.includes(' & ')
+                    ? talk.oppWatching ? `${slate.opp.owner} ARE WATCHING` : `${slate.opp.owner} AREN'T HERE`
+                    : talk.oppWatching ? `${slate.opp.owner} IS WATCHING` : `${slate.opp.owner} ISN'T HERE`
                   : 'TALK OFFLINE'}
               </div>
             </>
