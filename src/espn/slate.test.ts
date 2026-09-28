@@ -306,16 +306,35 @@ describe('buildSlate for the recorded week 3', () => {
     for (const [id, look] of before) expect(after.get(id)).toEqual(look);
   });
 
-  it('colors skin and hair from the measured headshots', () => {
+  it('takes skin, hair and beard from the measured headshots', () => {
     const measured = LOOKS as Record<string, string[]>;
     const players = slate.lanes.flatMap(l => [l.me, l.opp]);
     const henry = players.find(p => p.name === 'Derrick Henry')!;
-    expect(measured[henry.id]).toBeDefined();
-    expect(henry.sc).toBe(measured[henry.id][0]);
-    expect(henry.hc).toBe(measured[henry.id][1]);
+    const [sc, hc, hair, beard] = measured[henry.id];
+    expect({ sc: henry.sc, hc: henry.hc, hair: henry.hair, beard: henry.beard }).toEqual({ sc, hc, hair, beard });
 
-    for (const p of players.filter(p => p.pos !== 'DST')) expect(p.sc).toBe(measured[p.id][0]);
-    for (const p of players.filter(p => p.pos === 'DST')) expect(p.sc).toBeUndefined();
+    for (const p of players.filter(p => p.pos !== 'DST')) {
+      expect(p.sc).toBe(measured[p.id][0]);
+      expect(p.hair).toBe(measured[p.id][2]);
+      expect(p.beard).toBe(measured[p.id][3]);
+      expect(p.band).toBe(measured[p.id][4]);
+    }
+    for (const p of players.filter(p => p.pos === 'DST')) {
+      expect(p.sc).toBeUndefined();
+      expect(p.hair).toBe('helmet');
+      expect(p.beard).toBe('none');
+    }
+  });
+
+  it('gives a player whose hair is hidden by a headband dark hair and the band', () => {
+    const [id, look] = Object.entries(LOOKS as Record<string, string[]>).find(([, v]) => v[1] === '' && v[4])!;
+    const league = structuredClone(miniLeague);
+    league.schedule[0].home.rosterForCurrentScoringPeriod.entries[1] = entry(4, Number(id), 'Banded WR', 3, 8);
+    const banded = buildSlate(league, miniSeason, 1, { timeZone: TZ }).lanes.flatMap(l => [l.me, l.opp]).find(p => p.id === id)!;
+
+    expect(banded.hc).toBe('#1d1411');
+    expect(banded.band).toBe(look[4]);
+    expect(banded.hair).toBe(look[2]);
   });
 
   it('feeds snapshotAt before kickoff', () => {

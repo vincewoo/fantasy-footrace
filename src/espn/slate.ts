@@ -59,7 +59,7 @@ interface ProGame {
   awayProTeamId: number;
 }
 
-// Until styles are classified from headshots, draw them at roughly how often they show up on NFL rosters.
+// Players without a headshot measurement draw a style at roughly how often it shows up on NFL rosters.
 const HAIRS: Hair[] = ['short', 'short', 'short', 'fade', 'fade', 'fade', 'buzz', 'buzz', 'bald', 'curly', 'curly', 'locs', 'locs', 'afro', 'long', 'bun'];
 const BEARDS: Beard[] = ['none', 'none', 'none', 'none', 'none', 'none', 'none', 'stubble', 'stubble', 'stubble', 'stubble', 'mustache', 'goatee', 'goatee', 'goatee', 'full', 'full', 'full', 'full', 'full'];
 const HAIR_COLORS = ['#1d1411', '#5a3a22', '#7a5534', '#d4a650', '#2a1d15'];
@@ -75,16 +75,19 @@ function ownerOf(members: Map<string, any>, team: any): string {
   return names.join(' & ');
 }
 
-// Skin and hair colors sampled from ESPN headshots by tools/looks/build_looks.py.
-const MEASURED: Record<string, [string, string?]> = LOOKS as any;
+// Looks measured from ESPN headshots by tools/looks/build_looks.py:
+// [skin, hair color ('' when a headband or cap hides it), hair style, beard, headband?].
+const MEASURED: Record<string, [string, string, Hair, Beard, string?]> = LOOKS as any;
 
-function lookOf(id: number, pos: Pos): Pick<Player, 'skin' | 'sc' | 'hair' | 'hc' | 'beard'> {
+type Look = Pick<Player, 'skin' | 'sc' | 'hair' | 'hc' | 'beard' | 'band'>;
+
+function lookOf(id: number, pos: Pos): Look {
   const rng = mulberry(id);
   const skin = Math.floor(rng() * 5);
   const hair = rng();
   const hc = rng();
   const beard = rng();
-  const look: Pick<Player, 'skin' | 'sc' | 'hair' | 'hc' | 'beard'> = {
+  const look: Look = {
     skin,
     hair: pos === 'DST' ? 'helmet' : HAIRS[Math.floor(hair * HAIRS.length)],
     hc: HAIR_COLORS[Math.floor(hc * 5)],
@@ -92,9 +95,13 @@ function lookOf(id: number, pos: Pos): Pick<Player, 'skin' | 'sc' | 'hair' | 'hc
   };
   const measured = pos === 'DST' ? undefined : MEASURED[String(id)];
   if (measured) {
-    look.sc = measured[0];
-    // A measured player with no readable hair (headband, cap) gets dark hair, not a random blonde.
-    look.hc = measured[1] ?? HAIR_COLORS[0];
+    const [sc, hairColor, style, beardStyle, band] = measured;
+    look.sc = sc;
+    // No readable hair color (headband, cap) means dark hair, not a random blonde.
+    look.hc = hairColor || HAIR_COLORS[0];
+    look.hair = style;
+    look.beard = beardStyle;
+    if (band) look.band = band;
   }
   return look;
 }
