@@ -45,6 +45,12 @@ export interface AvatarProps {
   scale: number;
   napping: boolean;
   offset: number;
+  compact?: boolean;
+}
+
+// Players stand inside an 18px inset so a sprite at 0 or 2x projection stays on the field.
+export function trackLeft(f: number): string {
+  return `calc(18px + (100% - 36px) * ${f.toFixed(4)})`;
 }
 
 function hair(p: Player, T: TeamColors): { back: JSX.Element[]; front: JSX.Element[] } {
@@ -344,7 +350,7 @@ function fx(T: TeamColors, a: string | null, ev: PlayEvent): JSX.Element {
   );
 }
 
-export function Avatar({ player: p, colors: T, side, lane: i, pts, event: ev, out: isOut, scrubbing, showTag: showTags, scale, napping: nap, offset: off }: AvatarProps): JSX.Element {
+export function Avatar({ player: p, colors: T, side, lane: i, pts, event: ev, out: isOut, scrubbing, showTag: showTags, scale, napping: nap, offset: off, compact = false }: AvatarProps): JSX.Element {
   const a = ev && !nap ? ANIM[ev.kind] : null;
   const boost = !nap && !isOut && pts >= p.proj * 1.5;
   const lines = boost && !a ? [0, 1, 2].map(k => (
@@ -362,10 +368,10 @@ export function Avatar({ player: p, colors: T, side, lane: i, pts, event: ev, ou
     </div>
   )) : [];
   const pct = Math.max(0, pts / scale * 100 - (off || 0));
-  const tagRight = pct > 78;
+  const tagRight = pct > (compact ? 55 : 78);
   return (
     <div
-      style={{ position: 'absolute', left: pct + '%', bottom: 1, width: 34, height: 42, marginLeft: -17, zIndex: a ? 9 : 2, transition: scrubbing ? 'left .15s linear' : 'left 1s cubic-bezier(.3,.75,.35,1) .4s', filter: isOut ? 'grayscale(.85)' : 'none' }}
+      style={{ position: 'absolute', left: trackLeft(pct / 100), bottom: 1, width: 34, height: 42, marginLeft: -17, zIndex: a ? 9 : 2, transition: scrubbing ? 'left .15s linear' : 'left 1s cubic-bezier(.3,.75,.35,1) .4s', filter: isOut ? 'grayscale(.85)' : 'none' }}
     >
       <div key="sh" style={{ position: 'absolute', left: 6, bottom: 0, width: 22, height: 5, borderRadius: '50%', background: 'rgba(20,40,10,.35)' }} />
       {lines}

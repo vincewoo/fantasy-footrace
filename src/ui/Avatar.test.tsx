@@ -55,7 +55,7 @@ it('renders the design\u2019s idle avatar', () => {
   const m = render();
 
   expect(divs(m)).toBe(19);
-  expect(m).toContain('left:11.160714285714286%');
+  expect(m).toContain('left:calc(18px + (100% - 36px) * 0.1116)');
   expect(m).toContain('>ALLEN 5.0<');
 });
 
@@ -82,7 +82,7 @@ it('renders the design\u2019s injured opponent', () => {
   expect(divs(m)).toBe(23);
   expect(count(m, '>OUT<')).toBe(1);
   expect(m).toContain('>HENRY 3.0<');
-  expect(m).toContain('left:9.493670886075948%');
+  expect(m).toContain('left:calc(18px + (100% - 36px) * 0.0949)');
 });
 
 it('renders the design\u2019s napping player', () => {
@@ -99,7 +99,7 @@ it('renders the design\u2019s boosted player', () => {
   expect(divs(m)).toBe(26);
   expect(count(m, 'flame .')).toBe(2);
   expect(count(m, 'speedline')).toBe(3);
-  expect(m).toContain('left:89.28571428571429%');
+  expect(m).toContain('left:calc(18px + (100% - 36px) * 0.8929)');
 });
 
 it('renders the design\u2019s defense tag', () => {
@@ -208,4 +208,12 @@ it('loops every banner celebration immediately in a scaled box', () => {
   expect(m).toContain('transform-origin:0 0');
   expect(m).toContain('>17<');
   expect(m).not.toContain('OUT');
+});
+
+it('flips the name tag left earlier in the compact layout', () => {
+  const wide = render({ pts: 30 });
+  const compact = render({ pts: 30, compact: true });
+
+  expect(wide).toContain('left:32px');
+  expect(compact).toContain('right:32px');
 });
