@@ -1,4 +1,4 @@
-# ESPN data research for Fantasy Footrace (verified 2026-09-27, NFL week 3)
+# ESPN data research for Gridiron Gang (verified 2026-09-27, NFL week 3)
 
 ## Bottom line
 1. **Public league: a pure static front-end works.** `lm-api-reads.fantasy.espn.com` echoes back any Origin with `Access-Control-Allow-Credentials: true`, and the preflight allows `x-fantasy-filter` (curl-verified, see Q3). Confidence: high.

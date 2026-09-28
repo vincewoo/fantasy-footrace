@@ -37,7 +37,7 @@ function request(url: string, headers: Record<string, string> = {}, method = 'GE
 
 function allowed(key: string | null, extra: Record<string, string> = {}): Record<string, string> {
   const headers: Record<string, string> = { ...extra };
-  if (key !== null) headers['X-Footrace-Key'] = key;
+  if (key !== null) headers['X-Gridiron-Gang-Key'] = key;
   return headers;
 }
 
@@ -78,7 +78,7 @@ describe('worker', () => {
     );
 
     expect(sent(calls[0]).get('x-fantasy-filter')).toBe('{"a":1}');
-    expect(sent(calls[0]).get('x-footrace-key')).toBeNull();
+    expect(sent(calls[0]).get('x-gridiron-gang-key')).toBeNull();
   });
 
   it('rejects a wrong key without calling upstream', async () => {
@@ -86,7 +86,7 @@ describe('worker', () => {
     const response = await handle(request(L, allowed('nope', { Origin: 'https://ff.example' })), env, fetchImpl);
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_KEY' });
+    expect(await response.json()).toMatchObject({ type: 'GRIDIRON_GANG_KEY' });
     expect(calls).toHaveLength(0);
   });
 
@@ -95,7 +95,7 @@ describe('worker', () => {
     const response = await handle(request(L, allowed(null, { Origin: 'https://ff.example' })), env, fetchImpl);
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_KEY' });
+    expect(await response.json()).toMatchObject({ type: 'GRIDIRON_GANG_KEY' });
     expect(calls).toHaveLength(0);
   });
 
@@ -104,7 +104,7 @@ describe('worker', () => {
     const response = await handle(request(L, allowed('hunter2', { Origin: 'https://evil.example' })), env, fetchImpl);
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_ORIGIN' });
+    expect(await response.json()).toMatchObject({ type: 'GRIDIRON_GANG_ORIGIN' });
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
     expect(calls).toHaveLength(0);
   });
@@ -112,13 +112,13 @@ describe('worker', () => {
   it('answers the preflight from the allowed origin', async () => {
     const { calls, fetchImpl } = spyFetch();
     const response = await handle(
-      request(L, { Origin: 'https://ff.example', 'Access-Control-Request-Headers': 'X-Footrace-Key' }, 'OPTIONS'),
+      request(L, { Origin: 'https://ff.example', 'Access-Control-Request-Headers': 'X-Gridiron-Gang-Key' }, 'OPTIONS'),
       env,
       fetchImpl,
     );
 
     expect(response.status).toBe(204);
-    expect(response.headers.get('access-control-allow-headers')).toContain('X-Footrace-Key');
+    expect(response.headers.get('access-control-allow-headers')).toContain('X-Gridiron-Gang-Key');
     expect(calls).toHaveLength(0);
   });
 
@@ -173,7 +173,7 @@ describe('worker', () => {
 
     expect(response.status).toBe(500);
     const body = await response.text();
-    expect(JSON.parse(body)).toMatchObject({ type: 'FOOTRACE_CONFIG' });
+    expect(JSON.parse(body)).toMatchObject({ type: 'GRIDIRON_GANG_CONFIG' });
     expect(body).not.toContain('SWID');
     expect(body).not.toContain('ESPN_S2');
     expect(calls).toHaveLength(0);
@@ -184,7 +184,7 @@ describe('worker', () => {
     const response = await handle(request(L, allowed('hunter2', { Origin: 'https://ff.example' })), env, fetchImpl);
 
     expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_UPSTREAM' });
+    expect(await response.json()).toMatchObject({ type: 'GRIDIRON_GANG_UPSTREAM' });
   });
 
   it('serves a request with no origin header without CORS headers', async () => {
@@ -201,7 +201,7 @@ describe('talk route', () => {
   const HAND = {
     Origin: 'https://ff.example',
     Upgrade: 'websocket',
-    'Sec-WebSocket-Protocol': 'footrace, key.aHVudGVyMg',
+    'Sec-WebSocket-Protocol': 'gridiron-gang, key.aHVudGVyMg',
   };
 
   function talk(headers: Record<string, string>, url = TALK): Request {
@@ -237,13 +237,13 @@ describe('talk route', () => {
     const { env: talkEnvValue, names } = talkEnv();
     const { fetchImpl } = spyFetch();
     const response = await handle(
-      talk({ ...HAND, 'Sec-WebSocket-Protocol': 'footrace, key.bm9wZQ' }),
+      talk({ ...HAND, 'Sec-WebSocket-Protocol': 'gridiron-gang, key.bm9wZQ' }),
       talkEnvValue,
       fetchImpl,
     );
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_KEY' });
+    expect(await response.json()).toMatchObject({ type: 'GRIDIRON_GANG_KEY' });
     expect(names).toHaveLength(0);
   });
 
@@ -251,20 +251,20 @@ describe('talk route', () => {
     const { env: talkEnvValue } = talkEnv();
     const { fetchImpl } = spyFetch();
     const response = await handle(
-      talk({ Upgrade: 'websocket', 'Sec-WebSocket-Protocol': 'footrace, key.aHVudGVyMg' }),
+      talk({ Upgrade: 'websocket', 'Sec-WebSocket-Protocol': 'gridiron-gang, key.aHVudGVyMg' }),
       talkEnvValue,
       fetchImpl,
     );
 
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_ORIGIN' });
+    expect(await response.json()).toMatchObject({ type: 'GRIDIRON_GANG_ORIGIN' });
   });
 
   it('requires an upgrade for talk', async () => {
     const { env: talkEnvValue } = talkEnv();
     const { fetchImpl } = spyFetch();
     const response = await handle(
-      talk({ Origin: 'https://ff.example', 'Sec-WebSocket-Protocol': 'footrace, key.aHVudGVyMg' }),
+      talk({ Origin: 'https://ff.example', 'Sec-WebSocket-Protocol': 'gridiron-gang, key.aHVudGVyMg' }),
       talkEnvValue,
       fetchImpl,
     );
@@ -278,7 +278,7 @@ describe('talk route', () => {
     const response = await handle(talk(HAND, 'https://w.example/talk/2026/3/14/x?team=1'), talkEnvValue, fetchImpl);
 
     expect(response.status).toBe(404);
-    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_PATH' });
+    expect(await response.json()).toMatchObject({ type: 'GRIDIRON_GANG_PATH' });
     expect(names).toHaveLength(0);
   });
 
@@ -288,6 +288,6 @@ describe('talk route', () => {
     const response = await handle(talk(HAND), talkEnvValue, fetchImpl);
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ type: 'FOOTRACE_CONFIG' });
+    expect(await response.json()).toMatchObject({ type: 'GRIDIRON_GANG_CONFIG' });
   });
 });

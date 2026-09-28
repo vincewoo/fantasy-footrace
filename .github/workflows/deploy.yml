@@ -6,11 +6,13 @@
 #   variable PAGES_PROJECT        - the Cloudflare Pages project name
 # Then create an environment named production, which the deploy job below targets.
 # Worker secrets are never stored in GitHub and are set once, from your own shell:
-#   pnpm dlx wrangler secret put ESPN_S2 --name footrace-espn
+#   pnpm dlx wrangler secret put ESPN_S2 --name gridiron-gang-espn
 # Same command for SWID, PASSPHRASE and ALLOWED_ORIGIN. wrangler deploy does not touch them.
 # ALLOWED_ORIGIN must be exactly https://<PAGES_PROJECT>.pages.dev - no trailing slash.
 # The Pages deploy below publishes to that production URL, which is the only URL the Worker
 # accepts. Per-deploy preview URLs will not work with the Worker.
+# The Pages project must already exist before the first deploy:
+#   pnpm dlx wrangler pages project create <PAGES_PROJECT> --production-branch=main
 
 name: Deploy
 

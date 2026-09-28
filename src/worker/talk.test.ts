@@ -78,13 +78,13 @@ describe('parseTalkPath', () => {
 });
 
 describe('keyFromProtocols', () => {
-  it('decodes the key that follows the footrace marker', () => {
-    expect(keyFromProtocols('footrace, key.aHVudGVyMg')).toBe('hunter2');
+  it('decodes the key that follows the gridiron-gang marker', () => {
+    expect(keyFromProtocols('gridiron-gang, key.aHVudGVyMg')).toBe('hunter2');
   });
 
-  it('is null when footrace or the key entry is missing', () => {
+  it('is null when gridiron-gang or the key entry is missing', () => {
     expect(keyFromProtocols('key.aHVudGVyMg')).toBeNull();
-    expect(keyFromProtocols('footrace')).toBeNull();
+    expect(keyFromProtocols('gridiron-gang')).toBeNull();
   });
 });
 

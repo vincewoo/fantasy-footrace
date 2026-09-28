@@ -55,7 +55,7 @@ export async function fetchLeague(
 ): Promise<unknown> {
   const headers: Record<string, string> = {};
   const key = savedKey();
-  if (key !== null) headers['X-Footrace-Key'] = key;
+  if (key !== null) headers['X-Gridiron-Gang-Key'] = key;
   if (opts.filter !== undefined) headers['X-Fantasy-Filter'] = JSON.stringify(opts.filter);
 
   const doFetch = opts.fetchImpl ?? fetch;
@@ -80,7 +80,7 @@ export async function fetchLeague(
   if (response.status === 403) {
     const body: unknown = await response.json().catch(() => null);
     const type = (body as { type?: unknown } | null)?.type;
-    if (type === 'FOOTRACE_KEY') {
+    if (type === 'GRIDIRON_GANG_KEY') {
       throw new EspnError('ESPN proxy rejected the league passphrase', 403, 'key');
     }
   }
@@ -107,7 +107,7 @@ export async function fetchSeason(
 ): Promise<unknown> {
   const headers: Record<string, string> = {};
   const key = savedKey();
-  if (key !== null) headers['X-Footrace-Key'] = key;
+  if (key !== null) headers['X-Gridiron-Gang-Key'] = key;
 
   const doFetch = opts.fetchImpl ?? fetch;
   const url = seasonUrl(views);
@@ -131,7 +131,7 @@ export async function fetchSeason(
   if (response.status === 403) {
     const body: unknown = await response.json().catch(() => null);
     const type = (body as { type?: unknown } | null)?.type;
-    if (type === 'FOOTRACE_KEY') {
+    if (type === 'GRIDIRON_GANG_KEY') {
       throw new EspnError('ESPN proxy rejected the league passphrase', 403, 'key');
     }
   }

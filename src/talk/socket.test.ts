@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { connectTalk, keyProtocol, talkUrl, type TalkHandlers } from './socket';
 
-const URL_TALK = 'wss://footrace-espn.x.workers.dev/talk/2026/3/16?team=1';
+const URL_TALK = 'wss://gridiron-gang-espn.x.workers.dev/talk/2026/3/16?team=1';
 const TARGET = { season: 2026, week: 3, matchupId: 16, team: 1 };
 
 class FakeSocket {
@@ -86,8 +86,8 @@ function fakeOpts(): { opts: Parameters<typeof connectTalk>[3]; delays: number[]
 
 describe('talkUrl', () => {
   it('builds the room url from an absolute base', () => {
-    expect(talkUrl('https://footrace-espn.x.workers.dev', TARGET)).toBe(
-      'wss://footrace-espn.x.workers.dev/talk/2026/3/16?team=1',
+    expect(talkUrl('https://gridiron-gang-espn.x.workers.dev', TARGET)).toBe(
+      'wss://gridiron-gang-espn.x.workers.dev/talk/2026/3/16?team=1',
     );
   });
 
@@ -118,7 +118,7 @@ describe('connectTalk', () => {
     vi.useRealTimers();
   });
 
-  it('opens the socket with the footrace protocols and reports the connection', () => {
+  it('opens the socket with the gridiron-gang protocols and reports the connection', () => {
     const { opts } = fakeOpts();
     const { handlers, statuses } = record();
 
@@ -126,7 +126,7 @@ describe('connectTalk', () => {
 
     const socket = FakeSocket.instances[0];
     expect(socket.url).toBe(URL_TALK);
-    expect(socket.protocols).toEqual(['footrace', 'key.aHVudGVyMg']);
+    expect(socket.protocols).toEqual(['gridiron-gang', 'key.aHVudGVyMg']);
 
     socket.open();
     expect(statuses).toEqual([true]);

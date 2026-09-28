@@ -24,7 +24,7 @@ function corsHeaders(sameOrigin: boolean, allowed: string | undefined): Record<s
   return {
     'access-control-allow-origin': String(allowed),
     vary: 'Origin',
-    'access-control-allow-headers': 'X-Fantasy-Filter, X-Footrace-Key',
+    'access-control-allow-headers': 'X-Fantasy-Filter, X-Gridiron-Gang-Key',
     'access-control-allow-methods': 'GET, OPTIONS',
     'access-control-max-age': '600',
   };
@@ -43,22 +43,22 @@ async function keyMatches(given: string | null, passphrase: string): Promise<boo
 }
 
 async function talkRoute(request: Request, env: WorkerEnv, url: URL): Promise<Response> {
-  if (request.headers.get('Origin') !== env.ALLOWED_ORIGIN) return json('FOOTRACE_ORIGIN', 403, {});
+  if (request.headers.get('Origin') !== env.ALLOWED_ORIGIN) return json('GRIDIRON_GANG_ORIGIN', 403, {});
 
   const upgrade = request.headers.get('Upgrade');
-  if (upgrade === null || upgrade.toLowerCase() !== 'websocket') return json('FOOTRACE_UPGRADE', 426, {});
+  if (upgrade === null || upgrade.toLowerCase() !== 'websocket') return json('GRIDIRON_GANG_UPGRADE', 426, {});
 
   const passphrase = env.PASSPHRASE;
-  if (!passphrase) return json('FOOTRACE_CONFIG', 500, {});
+  if (!passphrase) return json('GRIDIRON_GANG_CONFIG', 500, {});
 
   const key = keyFromProtocols(request.headers.get('Sec-WebSocket-Protocol'));
-  if (!(await keyMatches(key, passphrase))) return json('FOOTRACE_KEY', 403, {});
+  if (!(await keyMatches(key, passphrase))) return json('GRIDIRON_GANG_KEY', 403, {});
 
   const path = parseTalkPath(url);
-  if (path === null) return json('FOOTRACE_PATH', 404, {});
+  if (path === null) return json('GRIDIRON_GANG_PATH', 404, {});
 
   const talk = env.TALK;
-  if (!talk) return json('FOOTRACE_CONFIG', 500, {});
+  if (!talk) return json('GRIDIRON_GANG_CONFIG', 500, {});
 
   const league = env.LEAGUE_ID ?? '918355353';
   return talk.get(talk.idFromName(`${league}:${path.season}:${path.week}:${path.matchupId}`)).fetch(request);
@@ -74,25 +74,25 @@ export async function handle(
   const sameOrigin = origin !== null && origin === allowed;
   const cors = corsHeaders(sameOrigin, allowed);
 
-  if (origin !== null && !sameOrigin) return json('FOOTRACE_ORIGIN', 403, {});
+  if (origin !== null && !sameOrigin) return json('GRIDIRON_GANG_ORIGIN', 403, {});
 
   const url = new URL(request.url);
   if (url.pathname.startsWith('/talk/')) return talkRoute(request, env, url);
 
   if (request.method === 'OPTIONS' && sameOrigin) return new Response(null, { status: 204, headers: cors });
-  if (request.method !== 'GET') return json('FOOTRACE_METHOD', 405, cors);
+  if (request.method !== 'GET') return json('GRIDIRON_GANG_METHOD', 405, cors);
 
   const cookie = cookieHeader(env as Record<string, string | undefined>);
   const passphrase = env.PASSPHRASE;
-  if (cookie === null || !passphrase) return json('FOOTRACE_CONFIG', 500, cors);
+  if (cookie === null || !passphrase) return json('GRIDIRON_GANG_CONFIG', 500, cors);
 
-  if (!(await keyMatches(request.headers.get('X-Footrace-Key'), passphrase))) {
-    return json('FOOTRACE_KEY', 403, cors);
+  if (!(await keyMatches(request.headers.get('X-Gridiron-Gang-Key'), passphrase))) {
+    return json('GRIDIRON_GANG_KEY', 403, cors);
   }
 
   const path = url.pathname + url.search;
   const league = Number(env.LEAGUE_ID ?? '918355353');
-  if (!isAllowedPath(path, league)) return json('FOOTRACE_PATH', 404, cors);
+  if (!isAllowedPath(path, league)) return json('GRIDIRON_GANG_PATH', 404, cors);
 
   const headers: Record<string, string> = { cookie, accept: 'application/json' };
   const filter = request.headers.get('x-fantasy-filter');
@@ -102,7 +102,7 @@ export async function handle(
   try {
     upstream = await fetchImpl(ESPN_HOST + path, { method: 'GET', headers });
   } catch {
-    return json('FOOTRACE_UPSTREAM', 502, cors);
+    return json('GRIDIRON_GANG_UPSTREAM', 502, cors);
   }
 
   const out = new Headers(cors);

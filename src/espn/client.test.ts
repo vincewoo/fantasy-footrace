@@ -171,8 +171,8 @@ afterEach(() => {
 });
 
 describe('passphrase', () => {
-  it('reports a FOOTRACE_KEY 403 as a key error', async () => {
-    const { fetchImpl } = fakeFetch(fakeResponse(403, { type: 'FOOTRACE_KEY' }));
+  it('reports a GRIDIRON_GANG_KEY 403 as a key error', async () => {
+    const { fetchImpl } = fakeFetch(fakeResponse(403, { type: 'GRIDIRON_GANG_KEY' }));
 
     const error = await fetchLeague(['mTeam'], { fetchImpl }).catch((caught: unknown) => caught);
 
@@ -180,13 +180,13 @@ describe('passphrase', () => {
     expect(error).toMatchObject({ kind: 'key', status: 403 });
   });
 
-  it('sends the saved key as X-Footrace-Key', async () => {
+  it('sends the saved key as X-Gridiron-Gang-Key', async () => {
     stubKey('k1');
     const { calls, fetchImpl } = fakeFetch(fakeResponse(200, {}));
 
     await fetchLeague(['mTeam'], { fetchImpl });
 
-    expect(headersOf(calls[0])['X-Footrace-Key']).toBe('k1');
+    expect(headersOf(calls[0])['X-Gridiron-Gang-Key']).toBe('k1');
   });
 
   it('sends no key header when none is saved', async () => {
@@ -195,6 +195,6 @@ describe('passphrase', () => {
 
     await fetchLeague(['mTeam'], { fetchImpl });
 
-    expect(headersOf(calls[0])['X-Footrace-Key']).toBeUndefined();
+    expect(headersOf(calls[0])['X-Gridiron-Gang-Key']).toBeUndefined();
   });
 });
