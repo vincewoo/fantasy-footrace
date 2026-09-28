@@ -77,6 +77,21 @@ it('loads the live slate from the matchup, the player pool and the real kickoffs
   expect(Number(result.toT(1790528400000).toFixed(6))).toBe(0.200957);
 });
 
+it('loads an earlier week for a replay when asked for one', async () => {
+  const { calls, fetchImpl } = fakeFetch();
+  const info = await loadLeagueInfo({ fetchImpl });
+
+  const result = await loadLiveSlate(info, 1, { timeZone: 'America/New_York', week: 2, fetchImpl });
+
+  expect(calls[1].url).toBe(
+    `/espn${LEAGUE_PATH}?view=mMatchupScore&view=mScoreboard&view=mLiveScoring&scoringPeriodId=2`,
+  );
+  expect(headersOf(calls[1])['X-Fantasy-Filter']).toBe(
+    '{"schedule":{"filterMatchupPeriodIds":{"value":[2]}}}',
+  );
+  expect(result.week).toBe(2);
+});
+
 it('reports the room identity of the viewer\u2019s matchup', async () => {
   const { fetchImpl } = fakeFetch();
   const info = await loadLeagueInfo({ fetchImpl });

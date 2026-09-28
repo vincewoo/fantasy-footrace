@@ -4,12 +4,14 @@ import { loadLeagueInfo, loadLiveSlate, pollLive, type LeagueInfo, type LiveSlat
 import { fetchScoreboard, statusesByTeam, withGameStatus, type GameStatus } from './espn/scoreboard';
 import { timeLabel } from './espn/timeline';
 import { connectTalk, talkUrl, type TalkConnection } from './talk/socket';
-import { ConnectError, TeamPicker, TeamSwitch } from './ui/Connect';
+import { ConnectError, HeaderControls, TeamPicker } from './ui/Connect';
 import { MatchupPage } from './ui/MatchupPage';
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 const POLL_MS = 15000;
+
+const WEEK_CHECK_MS = 10 * 60 * 1000;
 
 function readTeam(): number | null {
   try {
@@ -42,6 +44,7 @@ export default function App() {
   const [attempt, setAttempt] = useState(0);
   const [info, setInfo] = useState<LeagueInfo | null>(null);
   const [team, setTeam] = useState<number | null>(readTeam);
+  const [replayWeek, setReplayWeek] = useState<number | null>(null);
   const [live, setLive] = useState<LiveSlate | null>(null);
   const [statuses, setStatuses] = useState<Record<string, GameStatus>>({});
   const [error, setError] = useState<unknown>(null);
@@ -54,7 +57,11 @@ export default function App() {
   const pollingRef = useRef(false);
   const talkRef = useRef<TalkConnection | null>(null);
   const tauntRef = useRef(0);
+  const infoRef = useRef<LeagueInfo | null>(null);
+  infoRef.current = info;
   const picked = info && team !== null && info.teams.some(t => t.id === team) ? team : null;
+  const week = info ? (replayWeek !== null && replayWeek < info.week ? replayWeek : info.week) : null;
+  const replay = info !== null && week !== info.week;
 
   useEffect(() => {
     let ignore = false;
@@ -75,7 +82,34 @@ export default function App() {
   }, [attempt]);
 
   useEffect(() => {
-    if (!info || picked === null) return;
+    if (!info) return;
+    let ignore = false;
+
+    const check = () => {
+      loadLeagueInfo()
+        .then(next => {
+          if (!ignore && next.week !== info.week) setInfo(next);
+        })
+        .catch(() => {
+          // a failed check keeps the current week and is retried on the next one
+        });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+
+    const timer = setInterval(check, WEEK_CHECK_MS);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      ignore = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [info]);
+
+  useEffect(() => {
+    const info = infoRef.current;
+    if (!info || picked === null || week === null) return;
     let ignore = false;
     setError(null);
     setLive(null);
@@ -86,11 +120,12 @@ export default function App() {
     setConnected(false);
     setOppWatching(false);
     setRemoteTaunt(null);
-    loadLiveSlate(info, picked, { timeZone: TZ })
+    loadLiveSlate(info, picked, { timeZone: TZ, week })
       .then(next => {
         if (ignore) return;
         liveRef.current = next;
         setLive(next);
+        if (replay) return;
 
         fetchScoreboard(next.season, next.week)
           .then(board => {
@@ -128,10 +163,10 @@ export default function App() {
       talkRef.current?.close();
       talkRef.current = null;
     };
-  }, [info, picked]);
+  }, [week, picked, replay]);
 
   useEffect(() => {
-    if (!info || picked === null) return;
+    if (!info || picked === null || replay) return;
     let ignore = false;
 
     const pollOne = () => {
@@ -176,7 +211,7 @@ export default function App() {
       ignore = true;
       clearInterval(timer);
     };
-  }, [info, picked]);
+  }, [info, picked, replay]);
 
   const liveNow = useCallback(() => (liveRef.current ? liveRef.current.toT(Date.now()) : 0), []);
   const liveClock = useCallback(() => timeLabel(Date.now(), TZ, true), []);
@@ -195,10 +230,19 @@ export default function App() {
   const changeTeam = () => {
     store('ff_team', null);
     setTeam(null);
+    setReplayWeek(null);
   };
 
   if (error) {
-    return <ConnectError error={error} onRetry={() => setAttempt(count => count + 1)} />;
+    return (
+      <ConnectError
+        error={error}
+        onRetry={() => {
+          setReplayWeek(null);
+          setAttempt(count => count + 1);
+        }}
+      />
+    );
   }
 
   if (!info) return <Loading />;
@@ -207,17 +251,39 @@ export default function App() {
     return <TeamPicker teams={info.teams} leagueName={info.name} onPick={pickTeam} />;
   }
 
-  if (!live || gameSlate === null) return <Loading />;
+  if (!live || live.week !== week || gameSlate === null) return <Loading />;
+
+  const header = (
+    <HeaderControls
+      week={week}
+      currentWeek={info.week}
+      onWeek={next => setReplayWeek(next === info.week ? null : next)}
+      onChangeTeam={changeTeam}
+    />
+  );
+
+  if (replay) {
+    return (
+      <MatchupPage
+        key={`replay-${picked}-${week}`}
+        slate={live.slate}
+        subtitle={`WEEK ${week} REPLAY · ${info.name.toUpperCase()}`}
+        headerExtra={header}
+        storageKey={`ff_replay_v1_${picked}_${week}`}
+        replay
+      />
+    );
+  }
 
   return (
     <MatchupPage
-      key={`live-${picked}`}
+      key={`live-${picked}-${week}`}
       slate={gameSlate}
       subtitle={`WEEK ${info.week} · ${info.name.toUpperCase()}`}
-      headerExtra={<TeamSwitch onChangeTeam={changeTeam} />}
+      headerExtra={header}
       liveNow={liveNow}
       liveClock={liveClock}
-      storageKey="ff_live_v1"
+      storageKey={`ff_live_v1_${week}`}
       talk={talk}
       remoteTaunt={remoteTaunt}
     />

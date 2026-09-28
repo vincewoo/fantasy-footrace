@@ -127,6 +127,13 @@ it('keeps the demo free of the talk box and the room status', () => {
   expect(m).not.toContain('TALK OFFLINE');
 });
 
+it('drops the trash talk row from a replay', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={HALF} replay />);
+
+  expect(m).not.toContain('TALK TRASH');
+  expect(m).not.toContain('SAY SOMETHING');
+});
+
 it('shows the real current time on the live clock instead of the timeline time', () => {
   const m = renderToStaticMarkup(
     <MatchupPage slate={HALF} liveNow={() => 0.06} liveClock={() => 'SUN 5:15 AM'} />,

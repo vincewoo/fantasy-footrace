@@ -145,8 +145,28 @@ export function ConnectError(props: { error: unknown; onRetry(): void }): JSX.El
   );
 }
 
-export function TeamSwitch(props: { onChangeTeam(): void }): JSX.Element {
+export function HeaderControls(props: {
+  week: number;
+  currentWeek: number;
+  onWeek(week: number): void;
+  onChangeTeam(): void;
+}): JSX.Element {
+  const weeks = Array.from({ length: props.currentWeek }, (_, i) => props.currentWeek - i);
   return (
-    <button onClick={props.onChangeTeam} style={button(false)}>CHANGE TEAM</button>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <select
+        value={props.week}
+        onChange={event => props.onWeek(Number(event.target.value))}
+        aria-label="Week"
+        style={button(props.week !== props.currentWeek, { appearance: 'none' })}
+      >
+        {weeks.map(week => (
+          <option key={week} value={week}>
+            {week === props.currentWeek ? `WEEK ${week} · LIVE` : `WEEK ${week} · REPLAY`}
+          </option>
+        ))}
+      </select>
+      <button onClick={props.onChangeTeam} style={button(false)}>CHANGE TEAM</button>
+    </div>
   );
 }

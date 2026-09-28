@@ -111,6 +111,7 @@ export interface MatchupPageProps {
   storageKey?: string;
   talk?: { send(text: string): boolean; connected: boolean; oppWatching: boolean } | null;
   remoteTaunt?: { id: number; text: string } | null;
+  replay?: boolean;
 }
 
 export function MatchupPage({
@@ -125,6 +126,7 @@ export function MatchupPage({
   storageKey = STORAGE_KEY,
   talk = null,
   remoteTaunt = null,
+  replay = false,
 }: MatchupPageProps): JSX.Element {
   const [state, setState] = useState<PageState>(() => ({
     ...initPlayback(readSaved(storageKey)),
@@ -306,7 +308,7 @@ export function MatchupPage({
                 : e.kind === 'fg' || e.kind === 'xp' ? 'kick'
                   : 'pos';
           if (!snd || RANK[k] > RANK[snd]) snd = k;
-          if (!liveNow && TDK[e.kind] && e.side === 'opp' && Math.random() < 0.5) {
+          if (!liveNow && !replay && TDK[e.kind] && e.side === 'opp' && Math.random() < 0.5) {
             bubbles = { ...bubbles, opp: { id: ++bidRef.current, text: OPP_TAUNTS[Math.floor(Math.random() * 4)] } };
           }
         }
@@ -316,7 +318,7 @@ export function MatchupPage({
       persist(storageKey, next.t, next.liveT, next.speed);
     }, 100);
     return () => clearInterval(iv);
-  }, [slate, slateMinutes, liveNow, storageKey]);
+  }, [slate, slateMinutes, liveNow, storageKey, replay]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -606,6 +608,7 @@ export function MatchupPage({
         </div>
         )}
 
+        {replay ? null : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: compact ? 'nowrap' : 'wrap', overflowX: 'auto', margin: '0 -14px', padding: '0 14px 4px', scrollbarWidth: 'none' }}>
           <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566', marginRight: 4, whiteSpace: 'nowrap', flex: 'none' }}>TALK TRASH</div>
           {TAUNTS.map(text => (
@@ -646,6 +649,7 @@ export function MatchupPage({
             </>
           ) : null}
         </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(0,1fr)' : 'minmax(0,1fr) 330px', gap: 16, alignItems: 'start' }}>
           <div style={{ position: 'relative', background: '#3e7a2d', border: '3px solid #1c1a22', borderRadius: 16, boxShadow: '0 6px 0 #1c1a22', padding: '12px 12px 14px', display: 'flex', flexDirection: 'column', gap: 7, minWidth: 0 }}>
