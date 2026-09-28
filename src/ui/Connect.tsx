@@ -84,7 +84,6 @@ export function TeamPicker(props: {
   teams: LeagueTeam[];
   leagueName: string;
   onPick(id: number): void;
-  onDemo(): void;
 }): JSX.Element {
   return (
     <Card>
@@ -97,9 +96,6 @@ export function TeamPicker(props: {
           </button>
         ))}
       </div>
-      <button onClick={props.onDemo} style={{ ...PILL, alignSelf: 'flex-start', background: '#ffd23f' }}>
-        Just watch the demo
-      </button>
     </Card>
   );
 }
@@ -115,7 +111,7 @@ function problem(error: unknown): string {
   return `ESPN returned an error (${espn.status}).`;
 }
 
-export function ConnectError(props: { error: unknown; onRetry(): void; onDemo(): void }): JSX.Element {
+export function ConnectError(props: { error: unknown; onRetry(): void }): JSX.Element {
   const [key, setKey] = useState('');
   const wantsKey = props.error instanceof EspnError && props.error.kind === 'key';
 
@@ -144,26 +140,13 @@ export function ConnectError(props: { error: unknown; onRetry(): void; onDemo():
           </button>
         </div>
       ) : null}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button onClick={props.onRetry} style={PILL}>Retry</button>
-        <button onClick={props.onDemo} style={PILL}>Use demo</button>
-      </div>
+      <button onClick={props.onRetry} style={{ ...PILL, alignSelf: 'flex-start' }}>Retry</button>
     </Card>
   );
 }
 
-export function ModeSwitch(props: {
-  mode: 'live' | 'demo';
-  onMode(m: 'live' | 'demo'): void;
-  onChangeTeam?: () => void;
-}): JSX.Element {
+export function TeamSwitch(props: { onChangeTeam(): void }): JSX.Element {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <button onClick={() => props.onMode('live')} style={button(props.mode === 'live')}>LIVE</button>
-      <button onClick={() => props.onMode('demo')} style={button(props.mode === 'demo')}>DEMO</button>
-      {props.onChangeTeam ? (
-        <button onClick={props.onChangeTeam} style={button(false)}>CHANGE TEAM</button>
-      ) : null}
-    </div>
+    <button onClick={props.onChangeTeam} style={button(false)}>CHANGE TEAM</button>
   );
 }

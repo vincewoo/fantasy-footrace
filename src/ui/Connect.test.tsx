@@ -6,7 +6,7 @@ import { ConnectError } from './Connect';
 describe('ConnectError', () => {
   it('asks for the league passphrase when the proxy rejects the key', () => {
     const markup = renderToStaticMarkup(
-      <ConnectError error={new EspnError('x', 403, 'key')} onRetry={() => {}} onDemo={() => {}} />,
+      <ConnectError error={new EspnError('x', 403, 'key')} onRetry={() => {}} />,
     );
 
     expect(markup).toContain('league passphrase');
@@ -16,7 +16,7 @@ describe('ConnectError', () => {
 
   it('shows the real error message instead of a status of zero', () => {
     const markup = renderToStaticMarkup(
-      <ConnectError error={new TypeError('boom')} onRetry={() => {}} onDemo={() => {}} />,
+      <ConnectError error={new TypeError('boom')} onRetry={() => {}} />,
     );
 
     expect(markup.replace(/&#x27;/g, "'")).toContain("Couldn't read the league data: boom");
