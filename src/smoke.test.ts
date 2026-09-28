@@ -8,5 +8,5 @@ it('global.css defines exactly 35 keyframes', () => {
   const css = readFileSync(cssPath, 'utf8');
   const matches = css.match(/@keyframes /g);
 
-  expect(matches?.length ?? 0).toBe(58);
+  expect(matches?.length ?? 0).toBe(55);
 });

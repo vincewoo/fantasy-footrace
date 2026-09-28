@@ -114,10 +114,10 @@ const evId = (kind: EventKind, pts: number, id: number): PlayEvent => ({ ...ev(k
 it('cycles the five celebrations by event id', () => {
   expect([0, 1, 2, 3, 4].map(n => celebrationOf(evId('recTD', 6.2, n)))).toEqual([
     'griddy',
-    'spin',
     'bird',
     'twerk',
     'spike',
+    'griddy',
   ]);
 });
 
@@ -163,17 +163,8 @@ it('dances the Griddy in the banner figure', () => {
   expect(m).toContain('cel-griddy-body 1.8s steps(18) infinite');
 });
 
-it('dances the spin in the banner figure', () => {
-  const m = bannerFigure(1);
-
-  expect(m).toContain('cel-spin-body 1.8s steps(18) infinite');
-  expect(m).toContain('cel-spin-arm-f 1.8s steps(18) infinite');
-  expect(m).toContain('cel-spin-arm-b 1.8s steps(18) infinite');
-  expect(m).not.toContain('cel-face-away');
-});
-
 it('dances the Dirty Bird in the banner figure', () => {
-  const m = bannerFigure(2);
+  const m = bannerFigure(1);
 
   expect(m).toContain('cel-bird-arm-f 1.8s steps(18) infinite');
   expect(m).toContain('cel-bird-arm-b 1.8s steps(18) infinite');
@@ -182,7 +173,7 @@ it('dances the Dirty Bird in the banner figure', () => {
 });
 
 it('hides the face on the banner Twerk', () => {
-  const m = bannerFigure(3);
+  const m = bannerFigure(2);
 
   expect(count(m, 'cel-face-away 1.8s steps(1) infinite')).toBe(4);
   expect(m).toContain('cel-twerk-body 1.8s steps(18) infinite');
@@ -191,7 +182,7 @@ it('hides the face on the banner Twerk', () => {
 });
 
 it('shows the ball on the banner Spike', () => {
-  const m = bannerFigure(4);
+  const m = bannerFigure(3);
 
   expect(m).toContain('cel-spike-ball 1.8s steps(18) infinite');
   expect(m).toContain('cel-spike-arm 1.8s steps(18) infinite');

@@ -20,9 +20,9 @@ export const ANIM: Record<EventKind, string> = {
   injury: 'hurt',
 };
 
-export type Celebration = 'spin' | 'bird' | 'twerk' | 'griddy' | 'spike';
+export type Celebration = 'bird' | 'twerk' | 'griddy' | 'spike';
 
-export const CELEBRATIONS: readonly Celebration[] = ['griddy', 'spin', 'bird', 'twerk', 'spike'];
+export const CELEBRATIONS: readonly Celebration[] = ['griddy', 'bird', 'twerk', 'spike'];
 
 export function celebrationOf(ev: PlayEvent): Celebration {
   return CELEBRATIONS[ev.id % CELEBRATIONS.length];
@@ -96,7 +96,6 @@ function hair(p: Player, T: TeamColors): { back: JSX.Element[]; front: JSX.Eleme
 }
 
 const CELLS: Record<Celebration, { body: string | null; armF: string | null; armB: string | null; legF: string | null; legB: string | null; face: boolean; ball: boolean }> = {
-  spin: { body: 'cel-spin-body', armF: 'cel-spin-arm-f', armB: 'cel-spin-arm-b', legF: null, legB: null, face: false, ball: false },
   bird: { body: 'cel-bird-body', armF: 'cel-bird-arm-f', armB: 'cel-bird-arm-b', legF: 'cel-bird-leg', legB: null, face: false, ball: false },
   twerk: { body: 'cel-twerk-body', armF: 'cel-twerk-arm-f', armB: 'cel-twerk-arm-b', legF: 'cel-twerk-leg-f', legB: 'cel-twerk-leg-b', face: true, ball: false },
   griddy: { body: 'cel-griddy-body', armF: 'cel-griddy-arm-f', armB: 'cel-griddy-arm-b', legF: 'cel-griddy-leg-f', legB: 'cel-griddy-leg-b', face: false, ball: false },
