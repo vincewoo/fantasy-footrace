@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import type { EventKind, Player, PlayEvent, TeamColors } from '../model/types';
-import { Avatar, celebrationOf, type AvatarProps } from './Avatar';
+import { Avatar, CelebrationFigure, celebrationOf, type AvatarProps } from './Avatar';
 
 const BUF: TeamColors = { c1: '#00338D', c2: '#C60C30' };
 const BAL: TeamColors = { c1: '#241773', c2: '#9E7C0C' };
@@ -121,66 +121,100 @@ it('cycles the five celebrations by event id', () => {
   ]);
 });
 
-it('keeps the touchdown catch on today\u2019s spin for id 1', () => {
+it('keeps the lane touchdown catch on its pre play for id 1', () => {
   const m = render({ event: evId('recTD', 6.2, 1) });
 
-  expect(m).toContain('av-catchtd 1.9s steps(28)');
-  expect(m).toContain('arm-up-f-late 1.9s steps(24)');
-  expect(m).toContain('arm-up-b-late 1.9s steps(24)');
-  expect(m).not.toContain('cel-');
-  expect(m).not.toContain('-pre');
-});
-
-it('renders the Dirty Bird catch', () => {
-  const m = render({ event: evId('recTD', 6.2, 2) });
-
   expect(m).toContain('av-catchtd-pre 1.9s steps(28)');
-  expect(m).toContain('cel-bird-arm-f 1.8s steps(18) 1.18s forwards');
-  expect(m).toContain('cel-bird-arm-b 1.8s steps(18) 1.18s forwards');
-  expect(m).toContain('cel-bird-leg 1.8s steps(18) 1.18s forwards');
-  expect(m).toContain('cel-bird-body 1.8s steps(18) 1.18s forwards');
-  expect(m).not.toContain('av-catchtd 1.9s');
+  expect(m).not.toContain('cel-');
+  expect(m).not.toContain('arm-up-f-late');
+  expect(m).not.toContain('arm-up-b-late');
+  expect(m).not.toContain('av-catchtd 1.9s steps(28)');
 });
 
-it('renders the Twerk catch from behind', () => {
-  const m = render({ event: evId('recTD', 6.2, 3) });
+it('runs every lane touchdown on its pre play with no celebration', () => {
+  const PRE: Record<string, string> = { recTD: 'av-catchtd-pre', rushTD: 'av-td-pre', passTD: 'av-throwtd-pre' };
 
-  expect(count(m, 'cel-face-away 1.8s steps(1) 1.18s forwards')).toBe(4);
-  expect(m).toContain('cel-twerk-body 1.8s steps(18) 1.18s forwards');
+  for (const kind of ['recTD', 'rushTD', 'passTD'] as EventKind[]) {
+    for (const n of [0, 1, 2, 3, 4]) {
+      const m = render({ event: evId(kind, 6.2, n) });
+
+      expect(m).toContain(PRE[kind] + ' 1.9s steps(28)');
+      expect(m).not.toContain('cel-');
+      expect(m).not.toContain('1.18s');
+    }
+  }
+
+  const pass = render({ event: evId('passTD', 4.4, 2) });
+  expect(pass).toContain('animation:arm-throw 1.4s steps(18)');
+  expect(pass).toContain('>TD PASS!<');
+});
+
+function bannerFigure(n: number, kind: EventKind = 'recTD'): string {
+  return renderToStaticMarkup(
+    <CelebrationFigure player={ALLEN} colors={BUF} event={evId(kind, 6.2, n)} size={2} />,
+  );
+}
+
+it('dances the Griddy in the banner figure', () => {
+  const m = bannerFigure(0);
+
+  expect(m).toContain('cel-griddy-leg-f 1.8s steps(18) infinite');
+  expect(m).toContain('cel-griddy-leg-b 1.8s steps(18) infinite');
+  expect(m).toContain('cel-griddy-body 1.8s steps(18) infinite');
+});
+
+it('dances the spin in the banner figure', () => {
+  const m = bannerFigure(1);
+
+  expect(m).toContain('cel-spin-body 1.8s steps(18) infinite');
+  expect(m).toContain('cel-spin-arm-f 1.8s steps(18) infinite');
+  expect(m).toContain('cel-spin-arm-b 1.8s steps(18) infinite');
+  expect(m).not.toContain('cel-face-away');
+});
+
+it('dances the Dirty Bird in the banner figure', () => {
+  const m = bannerFigure(2);
+
+  expect(m).toContain('cel-bird-arm-f 1.8s steps(18) infinite');
+  expect(m).toContain('cel-bird-arm-b 1.8s steps(18) infinite');
+  expect(m).toContain('cel-bird-leg 1.8s steps(18) infinite');
+  expect(m).toContain('cel-bird-body 1.8s steps(18) infinite');
+});
+
+it('hides the face on the banner Twerk', () => {
+  const m = bannerFigure(3);
+
+  expect(count(m, 'cel-face-away 1.8s steps(1) infinite')).toBe(4);
+  expect(m).toContain('cel-twerk-body 1.8s steps(18) infinite');
   expect(m).toContain('cel-twerk-leg-f');
   expect(m).toContain('cel-twerk-leg-b');
 });
 
-it('renders the Griddy catch', () => {
-  const m = render({ event: evId('recTD', 6.2, 0) });
+it('shows the ball on the banner Spike', () => {
+  const m = bannerFigure(4);
 
-  expect(m).toContain('cel-griddy-leg-f 1.8s steps(18) 1.18s forwards');
-  expect(m).toContain('cel-griddy-leg-b 1.8s steps(18) 1.18s forwards');
-  expect(m).toContain('cel-griddy-body 1.8s steps(18) 1.18s forwards');
+  expect(m).toContain('cel-spike-ball 1.8s steps(18) infinite');
+  expect(m).toContain('cel-spike-arm 1.8s steps(18) infinite');
+  expect(count(m, '#8a4b22')).toBe(1);
 });
 
-it('renders the Spike catch with a ball', () => {
-  const m = render({ event: evId('recTD', 6.2, 4) });
-
-  expect(m).toContain('cel-spike-ball 1.8s steps(18) 1.18s forwards');
-  expect(m).toContain('cel-spike-arm 1.8s steps(18) 1.18s forwards');
-  expect(count(m, '#8a4b22')).toBe(2);
-});
-
-it('appends the celebration after the throw on a spiked touchdown pass', () => {
-  const m = render({ event: evId('passTD', 4.4, 2) });
-
-  expect(m).toContain('animation:arm-throw 1.4s steps(18), cel-bird-arm-f 1.8s steps(18) 1.18s forwards');
-  expect(m).toContain('av-throwtd-pre 1.9s steps(28)');
-  expect(m).not.toContain('arm-up-f-late');
-});
-
-it('runs every celebration on the 1.18s forwards beat', () => {
-  for (const n of [0, 2, 3, 4]) {
-    const m = render({ event: evId('rushTD', 6.0, n) });
+it('loops every banner celebration immediately in a scaled box', () => {
+  for (const n of [0, 1, 2, 3, 4]) {
+    const m = bannerFigure(n);
     const anims = [...m.matchAll(/animation:([^;"]*cel-[^;"]*)/g)].map(match => match[1]);
 
     expect(anims.length).toBeGreaterThan(0);
-    for (const anim of anims) expect(anim).toContain('1.18s forwards');
+    for (const anim of anims) {
+      expect(anim).toContain('infinite');
+      expect(anim).not.toContain('1.18s');
+    }
   }
+
+  const m = bannerFigure(1);
+  expect(m).toContain('width:68px');
+  expect(m).toContain('height:84px');
+  expect(m).toContain('transform:scale(2)');
+  expect(m).toContain('transform-origin:0 0');
+  expect(m).toContain('>17<');
+  expect(m).not.toContain('OUT');
 });

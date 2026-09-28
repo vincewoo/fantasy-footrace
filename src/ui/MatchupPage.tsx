@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { fmt, sgn, snapshotAt } from '../model/derive';
 import type { PlayEvent, Player, Side, Slate } from '../model/types';
-import { Avatar } from './Avatar';
+import { Avatar, CelebrationFigure } from './Avatar';
 import { advance, cycleSpeed, followLive, goLive, initPlayback, scrubTo, togglePlay, type Playback } from './playback';
 
 const INK = '#1c1a22';
@@ -469,9 +469,12 @@ export function MatchupPage({
     bannerHost = banner.e.lane;
     bannerEl = (
       <div key={'b' + banner.id} style={{ position: 'absolute', left: 0, right: 0, top: '50%', zIndex: 40, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0, animation: 'banner 1.9s steps(19) forwards' }}>
-          <div style={{ fontFamily: LILITA, fontSize: compact ? 38 : 68, lineHeight: 1, color: banner.good ? '#ffd23f' : '#ff8a73', WebkitTextStroke: (compact ? 2 : 3) + 'px ' + INK, textShadow: '0 5px 0 ' + INK, whiteSpace: 'nowrap' }}>{banner.text}</div>
-          <div style={{ fontFamily: SILK, fontSize: 12, fontWeight: 700, color: CREAM, background: banner.e.side === 'me' ? '#1f3f86' : '#8a2a1a', border: '2px solid ' + INK, padding: '4px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>{`${bp.name.toUpperCase()} · ${banner.e.side === 'me' ? slate.me.owner : slate.opp.owner}`}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: 0, animation: banner.good ? 'banner 3.2s steps(32) forwards' : 'banner 1.9s steps(19) forwards' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontFamily: LILITA, fontSize: compact ? 38 : 68, lineHeight: 1, color: banner.good ? '#ffd23f' : '#ff8a73', WebkitTextStroke: (compact ? 2 : 3) + 'px ' + INK, textShadow: '0 5px 0 ' + INK, whiteSpace: 'nowrap' }}>{banner.text}</div>
+            <div style={{ fontFamily: SILK, fontSize: 12, fontWeight: 700, color: CREAM, background: banner.e.side === 'me' ? '#1f3f86' : '#8a2a1a', border: '2px solid ' + INK, padding: '4px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>{`${bp.name.toUpperCase()} · ${banner.e.side === 'me' ? slate.me.owner : slate.opp.owner}`}</div>
+          </div>
+          {banner.good ? <CelebrationFigure player={bp} colors={slate.teamColors[bp.team]} event={banner.e} size={compact ? 1.6 : 2.4} /> : null}
         </div>
       </div>
     );
