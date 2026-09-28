@@ -21,9 +21,9 @@ export const ANIM: Record<EventKind, string> = {
   injury: 'hurt',
 };
 
-export type Celebration = 'bird' | 'twerk' | 'griddy' | 'spike';
+export type Celebration = 'bird' | 'twerk' | 'griddy' | 'spike' | 'luddy' | 'dunk' | 'heisman' | 'ickey';
 
-export const CELEBRATIONS: readonly Celebration[] = ['griddy', 'bird', 'twerk', 'spike'];
+export const CELEBRATIONS: readonly Celebration[] = ['griddy', 'bird', 'twerk', 'spike', 'luddy', 'dunk', 'heisman', 'ickey'];
 
 export function celebrationOf(ev: PlayEvent): Celebration {
   return CELEBRATIONS[ev.id % CELEBRATIONS.length];
@@ -66,12 +66,37 @@ function armArt(d: string, sleeve: string, skin: string, c1: string): JSX.Elemen
   );
 }
 
-const CELLS: Record<Celebration, { body: string | null; armF: string | null; armB: string | null; legF: string | null; legB: string | null; face: boolean; ball: boolean }> = {
-  bird: { body: 'cel-bird-body', armF: 'cel-bird-arm-f', armB: 'cel-bird-arm-b', legF: 'cel-bird-leg', legB: null, face: false, ball: false },
-  twerk: { body: 'cel-twerk-body', armF: 'cel-twerk-arm-f', armB: 'cel-twerk-arm-b', legF: 'cel-twerk-leg-f', legB: 'cel-twerk-leg-b', face: true, ball: false },
-  griddy: { body: 'cel-griddy-body', armF: 'cel-griddy-arm-f', armB: 'cel-griddy-arm-b', legF: 'cel-griddy-leg-f', legB: 'cel-griddy-leg-b', face: false, ball: false },
-  spike: { body: null, armF: 'cel-spike-arm', armB: null, legF: null, legB: null, face: false, ball: true },
+// ball names the keyframes that carry the football through the dance, when the dance has one.
+const CELLS: Record<Celebration, { body: string | null; armF: string | null; armB: string | null; legF: string | null; legB: string | null; face: boolean; ball: string | null }> = {
+  bird: { body: 'cel-bird-body', armF: 'cel-bird-arm-f', armB: 'cel-bird-arm-b', legF: 'cel-bird-leg', legB: null, face: false, ball: null },
+  twerk: { body: 'cel-twerk-body', armF: 'cel-twerk-arm-f', armB: 'cel-twerk-arm-b', legF: 'cel-twerk-leg-f', legB: 'cel-twerk-leg-b', face: true, ball: null },
+  griddy: { body: 'cel-griddy-body', armF: 'cel-griddy-arm-f', armB: 'cel-griddy-arm-b', legF: 'cel-griddy-leg-f', legB: 'cel-griddy-leg-b', face: false, ball: null },
+  spike: { body: null, armF: 'cel-spike-arm', armB: null, legF: null, legB: null, face: false, ball: 'cel-spike-ball' },
+  luddy: { body: 'cel-luddy-body', armF: 'cel-luddy-arm-f', armB: 'cel-luddy-arm-b', legF: 'cel-luddy-leg-f', legB: 'cel-luddy-leg-b', face: false, ball: null },
+  dunk: { body: 'cel-dunk-body', armF: 'cel-dunk-arm-f', armB: 'cel-dunk-arm-b', legF: 'cel-dunk-leg-f', legB: 'cel-dunk-leg-b', face: false, ball: 'cel-dunk-ball' },
+  heisman: { body: 'cel-heisman-body', armF: 'cel-heisman-arm-f', armB: 'cel-heisman-arm-b', legF: 'cel-heisman-leg', legB: null, face: false, ball: 'cel-heisman-ball' },
+  ickey: { body: 'cel-ickey-body', armF: 'cel-ickey-arm-f', armB: 'cel-ickey-arm-b', legF: 'cel-ickey-leg-f', legB: 'cel-ickey-leg-b', face: false, ball: 'cel-ickey-ball' },
 };
+
+// The goalpost for the dunk stands just off the dancer's front shoulder in figure coordinates, with
+// the crossbar at hair height so the leap carries the ball over it. The stanchion stays put while
+// the crossbar and uprights shudder from the slam.
+function goalpost(): JSX.Element {
+  const bar = (d: string) => (
+    <>
+      <path d={d} stroke={INK} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d={d} stroke="#ffd23f" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </>
+  );
+  return (
+    <svg key="post" width={34} height={42} viewBox="0 0 34 42" style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }}>
+      {bar('M32 41 V-4')}
+      <g style={{ transformBox: 'view-box', transformOrigin: '32px -4px', animation: 'cel-dunk-post 1.8s steps(18) infinite' }}>
+        {bar('M18 -30 V-4 H46 V-30')}
+      </g>
+    </svg>
+  );
+}
 
 function figure(
   p: Player,
@@ -192,7 +217,7 @@ function figure(
   const celBall = C && C.ball ? (
     <div
       key="celball"
-      style={{ position: 'absolute', left: 24, bottom: 15, width: 12, height: 8, background: '#8a4b22', border: B, borderRadius: '50%', animation: 'cel-spike-ball 1.8s steps(18) infinite', opacity: 0, zIndex: 3 }}
+      style={{ position: 'absolute', left: 24, bottom: 15, width: 12, height: 8, background: '#8a4b22', border: B, borderRadius: '50%', animation: C.ball + ' 1.8s steps(18) infinite', opacity: 0, zIndex: 3 }}
     >
       <div style={{ position: 'absolute', left: 3, right: 3, top: 1, height: 1.5, background: CREAM }} />
     </div>
@@ -227,10 +252,12 @@ function figure(
 }
 
 export function CelebrationFigure({ player, colors, event, size }: { player: Player; colors: TeamColors; event: PlayEvent; size: number }): JSX.Element {
+  const cel = celebrationOf(event);
   return (
-    <div style={{ position: 'relative', width: 34 * size, height: 42 * size, pointerEvents: 'none' }}>
+    <div style={{ position: 'relative', width: 34 * size, height: 42 * size, marginRight: cel === 'dunk' ? 14 * size : 0, pointerEvents: 'none' }}>
       <div style={{ position: 'absolute', left: 0, top: 0, width: 34, height: 42, transform: `scale(${size})`, transformOrigin: '0 0' }}>
-        {figure(player, colors, ANIM[event.kind], event, false, 0, false, false, celebrationOf(event))}
+        {cel === 'dunk' ? goalpost() : null}
+        {figure(player, colors, ANIM[event.kind], event, false, 0, false, false, cel)}
       </div>
     </div>
   );
