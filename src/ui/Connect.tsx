@@ -84,7 +84,6 @@ export function TeamPicker(props: {
   teams: LeagueTeam[];
   leagueName: string;
   onPick(id: number): void;
-  onDemo(): void;
 }): JSX.Element {
   return (
     <Card>
@@ -97,9 +96,6 @@ export function TeamPicker(props: {
           </button>
         ))}
       </div>
-      <button onClick={props.onDemo} style={{ ...PILL, alignSelf: 'flex-start', background: '#ffd23f' }}>
-        Just watch the demo
-      </button>
     </Card>
   );
 }
@@ -115,7 +111,7 @@ function problem(error: unknown): string {
   return `ESPN returned an error (${espn.status}).`;
 }
 
-export function ConnectError(props: { error: unknown; onRetry(): void; onDemo(): void }): JSX.Element {
+export function ConnectError(props: { error: unknown; onRetry(): void }): JSX.Element {
   const [key, setKey] = useState('');
   const wantsKey = props.error instanceof EspnError && props.error.kind === 'key';
 
@@ -144,26 +140,33 @@ export function ConnectError(props: { error: unknown; onRetry(): void; onDemo():
           </button>
         </div>
       ) : null}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button onClick={props.onRetry} style={PILL}>Retry</button>
-        <button onClick={props.onDemo} style={PILL}>Use demo</button>
-      </div>
+      <button onClick={props.onRetry} style={{ ...PILL, alignSelf: 'flex-start' }}>Retry</button>
     </Card>
   );
 }
 
-export function ModeSwitch(props: {
-  mode: 'live' | 'demo';
-  onMode(m: 'live' | 'demo'): void;
-  onChangeTeam?: () => void;
+export function HeaderControls(props: {
+  week: number;
+  currentWeek: number;
+  onWeek(week: number): void;
+  onChangeTeam(): void;
 }): JSX.Element {
+  const weeks = Array.from({ length: props.currentWeek }, (_, i) => props.currentWeek - i);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <button onClick={() => props.onMode('live')} style={button(props.mode === 'live')}>LIVE</button>
-      <button onClick={() => props.onMode('demo')} style={button(props.mode === 'demo')}>DEMO</button>
-      {props.onChangeTeam ? (
-        <button onClick={props.onChangeTeam} style={button(false)}>CHANGE TEAM</button>
-      ) : null}
+      <select
+        value={props.week}
+        onChange={event => props.onWeek(Number(event.target.value))}
+        aria-label="Week"
+        style={button(props.week !== props.currentWeek, { appearance: 'none' })}
+      >
+        {weeks.map(week => (
+          <option key={week} value={week}>
+            {week === props.currentWeek ? `WEEK ${week} · LIVE` : `WEEK ${week} · REPLAY`}
+          </option>
+        ))}
+      </select>
+      <button onClick={props.onChangeTeam} style={button(false)}>CHANGE TEAM</button>
     </div>
   );
 }

@@ -121,10 +121,11 @@ async function dstHistoryOf(
 export async function loadLiveSlate(
   info: LeagueInfo,
   myTeamId: number,
-  opts: { timeZone: string; fetchImpl?: typeof fetch; now?: number },
+  opts: { timeZone: string; week?: number; fetchImpl?: typeof fetch; now?: number },
 ): Promise<LiveSlate> {
+  const week = opts.week ?? info.week;
   const [matchup, season] = await Promise.all([
-    fetchMatchup(info.week, opts.fetchImpl),
+    fetchMatchup(week, opts.fetchImpl),
     fetchSeason(['proTeamSchedules_wl'], { fetchImpl: opts.fetchImpl }),
   ]);
 
@@ -135,14 +136,14 @@ export async function loadLiveSlate(
   if (!entry) throw new Error('no matchup for team ' + myTeamId);
 
   const slate = buildSlate(
-    { ...info.raw, scoringPeriodId: info.week, schedule },
+    { ...info.raw, scoringPeriodId: week, schedule },
     season,
     myTeamId,
     { timeZone: opts.timeZone },
   );
 
-  const timeline = buildTimeline(weekKickoffs(season, info.week), opts.timeZone);
-  const cur = readPoll(schedule, myTeamId, info.week);
+  const timeline = buildTimeline(weekKickoffs(season, week), opts.timeZone);
+  const cur = readPoll(schedule, myTeamId, week);
   const history = await dstHistoryOf(entry, info, cur, opts.fetchImpl);
   const seed = eventsFromPoll(
     slate,
@@ -158,7 +159,7 @@ export async function loadLiveSlate(
     poll: cur,
     toT: timeline.toT,
     season: SEASON,
-    week: info.week,
+    week,
     matchupId: entry.id,
     myTeamId,
     oppTeamId: entry.home.teamId === myTeamId ? entry.away.teamId : entry.home.teamId,
@@ -170,9 +171,9 @@ export async function pollLive(
   live: LiveSlate,
   opts: { fetchImpl?: typeof fetch; now?: number } = {},
 ): Promise<LiveSlate> {
-  const schedule = scheduleOf(await fetchMatchup(info.week, opts.fetchImpl));
+  const schedule = scheduleOf(await fetchMatchup(live.week, opts.fetchImpl));
 
-  const cur = readPoll(schedule, live.myTeamId, info.week);
+  const cur = readPoll(schedule, live.myTeamId, live.week);
   const maxId = live.slate.events.reduce((max, e) => Math.max(max, e.id), 0);
   const events = eventsFromPoll(
     live.slate,

@@ -77,23 +77,23 @@ it('offers every league team on the picker card', () => {
   const teams = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Team ${i + 1}`, owner: `owner${i + 1}` }));
 
   const m = renderToStaticMarkup(
-    <TeamPicker teams={teams} leagueName="#fpandfriends" onPick={() => {}} onDemo={() => {}} />,
+    <TeamPicker teams={teams} leagueName="#fpandfriends" onPick={() => {}} />,
   );
 
   expect(m).toContain('Pick your team');
   expect(m).toContain('#fpandfriends');
   for (const team of teams) expect(m).toContain(team.name);
-  expect(m).toContain('Just watch the demo');
+  expect(m).not.toContain('demo');
 });
 
 it('tells the viewer how to fix a private league', () => {
   const m = renderToStaticMarkup(
-    <ConnectError error={new EspnError('not visible', 401, 'private')} onRetry={() => {}} onDemo={() => {}} />,
+    <ConnectError error={new EspnError('not visible', 401, 'private')} onRetry={() => {}} />,
   );
 
   expect(m).toContain('.env.local');
   expect(m).toContain('Retry');
-  expect(m).toContain('Use demo');
+  expect(m).not.toContain('demo');
 });
 
 it('shows the opponent\u2019s presence and the taunt box in a live room', () => {
@@ -125,6 +125,13 @@ it('keeps the demo free of the talk box and the room status', () => {
 
   expect(m).not.toContain('SAY SOMETHING');
   expect(m).not.toContain('TALK OFFLINE');
+});
+
+it('drops the trash talk row from a replay', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={HALF} replay />);
+
+  expect(m).not.toContain('TALK TRASH');
+  expect(m).not.toContain('SAY SOMETHING');
 });
 
 it('shows the real current time on the live clock instead of the timeline time', () => {
