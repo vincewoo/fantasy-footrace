@@ -310,16 +310,16 @@ describe('buildSlate for the recorded week 3', () => {
   it('takes skin, hair and beard from the measured headshots', () => {
     const measured = LOOKS as Record<string, string[]>;
     const players = slate.lanes.flatMap(l => [l.me, l.opp]);
-    const henry = players.find(p => p.name === 'Derrick Henry')!;
-    const [sc, hc, hair, beard] = measured[henry.id];
-    expect({ sc: henry.sc, hc: henry.hc, hair: henry.hair, beard: henry.beard }).toEqual({ sc, hc, hair, beard });
+    const plain = players.find(p => p.pos !== 'DST' && !LOOK_OVERRIDES[p.id])!;
+    const [sc, hc, hair, beard] = measured[plain.id];
+    expect({ sc: plain.sc, hc: plain.hc, hair: plain.hair, beard: plain.beard }).toEqual({ sc, hc, hair, beard });
 
     for (const p of players.filter(p => p.pos !== 'DST')) {
       const fix = LOOK_OVERRIDES[p.id];
       expect(p.sc).toBe(fix?.sc ?? measured[p.id][0]);
       expect(p.hair).toBe(fix?.hair ?? measured[p.id][2]);
       expect(p.beard).toBe(fix?.beard ?? measured[p.id][3]);
-      expect(p.band).toBe(measured[p.id][4]);
+      expect(p.band).toBe(fix?.band === null ? undefined : fix?.band ?? measured[p.id][4]);
     }
     for (const p of players.filter(p => p.pos === 'DST')) {
       expect(p.sc).toBeUndefined();
