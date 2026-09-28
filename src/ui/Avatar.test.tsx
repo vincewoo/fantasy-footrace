@@ -173,12 +173,16 @@ it('renders the design\u2019s defense tag', () => {
 
 const evId = (kind: EventKind, pts: number, id: number): PlayEvent => ({ ...ev(kind, pts), id });
 
-it('cycles the five celebrations by event id', () => {
-  expect([0, 1, 2, 3, 4].map(n => celebrationOf(evId('recTD', 6.2, n)))).toEqual([
+it('cycles the eight celebrations by event id', () => {
+  expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map(n => celebrationOf(evId('recTD', 6.2, n)))).toEqual([
     'griddy',
     'bird',
     'twerk',
     'spike',
+    'luddy',
+    'dunk',
+    'heisman',
+    'ickey',
     'griddy',
   ]);
 });
@@ -251,8 +255,56 @@ it('shows the ball on the banner Spike', () => {
   expect(count(m, '#8a4b22')).toBe(1);
 });
 
+it('dances the Luddy in the banner figure', () => {
+  const m = bannerFigure(4);
+
+  expect(m).toContain('cel-luddy-body 1.8s steps(18) infinite');
+  expect(m).toContain('cel-luddy-leg-f 1.8s steps(18) infinite');
+  expect(m).toContain('cel-luddy-leg-b 1.8s steps(18) infinite');
+  expect(m).toContain('cel-luddy-arm-f 1.8s steps(18) infinite');
+  expect(m).not.toContain('#8a4b22');
+});
+
+it('dunks the ball over a goalpost only in the banner Dunk', () => {
+  const m = bannerFigure(5);
+
+  expect(m).toContain('cel-dunk-body 1.8s steps(18) infinite');
+  expect(m).toContain('cel-dunk-ball 1.8s steps(18) infinite');
+  expect(m).toContain('cel-dunk-post 1.8s steps(18) infinite');
+  expect(m).toContain('stroke="#ffd23f"');
+  expect(m).toContain('margin-right:28px');
+  expect(count(m, '<svg')).toBe(2);
+  expect(count(m, '#8a4b22')).toBe(1);
+
+  for (const n of [0, 1, 2, 3, 4, 6, 7]) {
+    const other = bannerFigure(n);
+    expect(other).not.toContain('cel-dunk-post');
+    expect(count(other, '<svg')).toBe(1);
+    expect(other).toContain('margin-right:0');
+  }
+});
+
+it('strikes the Heisman pose with the ball tucked', () => {
+  const m = bannerFigure(6);
+
+  expect(m).toContain('cel-heisman-arm-f 1.8s steps(18) infinite');
+  expect(m).toContain('cel-heisman-leg 1.8s steps(18) infinite');
+  expect(m).toContain('cel-heisman-ball 1.8s steps(18) infinite');
+  expect(count(m, '#8a4b22')).toBe(1);
+});
+
+it('shuffles and spikes on the banner Ickey Shuffle', () => {
+  const m = bannerFigure(7);
+
+  expect(m).toContain('cel-ickey-body 1.8s steps(18) infinite');
+  expect(m).toContain('cel-ickey-leg-f 1.8s steps(18) infinite');
+  expect(m).toContain('cel-ickey-leg-b 1.8s steps(18) infinite');
+  expect(m).toContain('cel-ickey-ball 1.8s steps(18) infinite');
+  expect(count(m, '#8a4b22')).toBe(1);
+});
+
 it('loops every banner celebration immediately in a scaled box', () => {
-  for (const n of [0, 1, 2, 3, 4]) {
+  for (const n of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
     const m = bannerFigure(n);
     const anims = [...m.matchAll(/animation:([^;"]*cel-[^;"]*)/g)].map(match => match[1]);
 
