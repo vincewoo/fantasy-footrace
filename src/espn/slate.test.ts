@@ -4,8 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import type { Slate } from '../model/types';
+import LOOKS from './looks.json';
+import OVERRIDES from './lookOverrides.json';
 import { PRO_TEAMS, proTeamById } from './proTeams';
-import { buildSlate, LANE_ORDER, listTeams, posOf, SLOT_LABEL } from './slate';
+import { buildSlate, LANE_ORDER, listTeams, LOOK_OVERRIDES, posOf, SLOT_LABEL } from './slate';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtures', name), 'utf8'));
@@ -296,13 +298,88 @@ describe('buildSlate for the recorded week 3', () => {
       new Map(
         s.lanes
           .flatMap(l => [l.me, l.opp])
-          .map(p => [p.id, [p.skin, p.hair, p.hc, p.beard]] as const),
+          .map(p => [p.id, [p.skin, p.sc, p.hair, p.hc, p.beard]] as const),
       );
 
     const before = looks(slate);
     const after = looks(reverse);
     expect([...before.keys()].sort()).toEqual([...after.keys()].sort());
     for (const [id, look] of before) expect(after.get(id)).toEqual(look);
+  });
+
+  it('takes skin, hair and beard from the measured headshots', () => {
+    const measured = LOOKS as Record<string, string[]>;
+    const players = slate.lanes.flatMap(l => [l.me, l.opp]);
+    const plain = players.find(p => p.pos !== 'DST' && !LOOK_OVERRIDES[p.id])!;
+    const [sc, hc, hair, beard] = measured[plain.id];
+    expect({ sc: plain.sc, hc: plain.hc, hair: plain.hair, beard: plain.beard }).toEqual({ sc, hc, hair, beard });
+
+    for (const p of players.filter(p => p.pos !== 'DST')) {
+      const fix = LOOK_OVERRIDES[p.id];
+      expect(p.sc).toBe(fix?.sc ?? measured[p.id][0]);
+      expect(p.hair).toBe(fix?.hair ?? measured[p.id][2]);
+      expect(p.beard).toBe(fix?.beard ?? measured[p.id][3]);
+      expect(p.band).toBe(fix?.band === null ? undefined : fix?.band ?? measured[p.id][4]);
+    }
+    for (const p of players.filter(p => p.pos === 'DST')) {
+      expect(p.sc).toBeUndefined();
+      expect(p.hair).toBe('helmet');
+      expect(p.beard).toBe('none');
+    }
+  });
+
+  it('lets a hand override replace only the fields it names', () => {
+    const gibbs = slate.lanes.flatMap(l => [l.me, l.opp]).find(p => p.name === 'Jahmyr Gibbs')!;
+    const [sc, , , beard, band] = (LOOKS as Record<string, string[]>)[gibbs.id];
+
+    expect(LOOK_OVERRIDES[gibbs.id].hair).toBe('locs');
+    expect(gibbs.hair).toBe('locs');
+    expect(gibbs.sc).toBe(sc);
+    expect(gibbs.beard).toBe(beard);
+    expect(gibbs.band).toBe(band);
+  });
+
+  it('can take a detected headband off or put one on', () => {
+    const [id] = Object.entries(LOOKS as Record<string, string[]>).find(([, v]) => v[4])!;
+    const league = structuredClone(miniLeague);
+    league.schedule[0].home.rosterForCurrentScoringPeriod.entries[1] = entry(4, Number(id), 'Banded WR', 3, 8);
+    league.schedule[0].home.rosterForCurrentScoringPeriod.entries[2] = entry(2, 7777777, 'Plain RB', 2, 8);
+    LOOK_OVERRIDES[id] = { name: 'test', band: null };
+    LOOK_OVERRIDES['7777777'] = { name: 'test', band: '#e5583f' };
+    try {
+      const players = buildSlate(league, miniSeason, 1, { timeZone: TZ }).lanes.flatMap(l => [l.me, l.opp]);
+      expect(players.find(p => p.id === id)!.band).toBeUndefined();
+      expect(players.find(p => p.id === '7777777')!.band).toBe('#e5583f');
+    } finally {
+      delete LOOK_OVERRIDES[id];
+      delete LOOK_OVERRIDES['7777777'];
+    }
+  });
+
+  it('keeps every hand override to styles and colors the avatar can draw', () => {
+    const hairs = ['bald', 'buzz', 'short', 'fade', 'curly', 'afro', 'locs', 'long', 'bun'];
+    const beards = ['none', 'stubble', 'mustache', 'goatee', 'full'];
+    const color = /^#[0-9a-f]{6}$/i;
+    for (const [id, fix] of Object.entries(OVERRIDES as Record<string, Record<string, unknown>>)) {
+      expect(id).toMatch(/^\d+$/);
+      expect(typeof fix.name).toBe('string');
+      for (const key of Object.keys(fix)) expect(['name', 'hair', 'beard', 'hc', 'sc', 'band']).toContain(key);
+      if (fix.hair !== undefined) expect(hairs).toContain(fix.hair);
+      if (fix.beard !== undefined) expect(beards).toContain(fix.beard);
+      for (const key of ['hc', 'sc']) if (fix[key] !== undefined) expect(fix[key]).toMatch(color);
+      if (fix.band !== undefined && fix.band !== null) expect(fix.band).toMatch(color);
+    }
+  });
+
+  it('gives a player whose hair is hidden by a headband dark hair and the band', () => {
+    const [id, look] = Object.entries(LOOKS as Record<string, string[]>).find(([, v]) => v[1] === '' && v[4])!;
+    const league = structuredClone(miniLeague);
+    league.schedule[0].home.rosterForCurrentScoringPeriod.entries[1] = entry(4, Number(id), 'Banded WR', 3, 8);
+    const banded = buildSlate(league, miniSeason, 1, { timeZone: TZ }).lanes.flatMap(l => [l.me, l.opp]).find(p => p.id === id)!;
+
+    expect(banded.hc).toBe('#1d1411');
+    expect(banded.band).toBe(look[4]);
+    expect(banded.hair).toBe(look[2]);
   });
 
   it('feeds snapshotAt before kickoff', () => {
@@ -340,6 +417,15 @@ describe('buildSlate corner cases', () => {
     });
     expect(mini.statusLabel(mini.lanes[3].me, 0)).toBe('KO SUN 1:00 PM');
     expect(mini.statusLabel(mini.lanes[3].me, 1)).toBe('FINAL');
+  });
+
+  it('falls back to a seeded look for a player with no headshot measurement', () => {
+    const slate = buildSlate(miniLeague, season, 1, { timeZone: TZ });
+    const players = slate.lanes.flatMap(l => [l.me, l.opp]).filter(p => p.id !== 'empty');
+    for (const p of players) {
+      expect((LOOKS as Record<string, unknown>)[p.id]).toBeUndefined();
+      expect(p.sc).toBeUndefined();
+    }
   });
 
   it('marks a player with no week game BYE', () => {

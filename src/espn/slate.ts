@@ -1,5 +1,7 @@
-import type { Hair, Lane, Player, Pos, Slate, TeamColors } from '../model/types';
+import type { Beard, Hair, Lane, Player, Pos, Slate, TeamColors } from '../model/types';
 import { mulberry } from '../sim/mock';
+import OVERRIDES from './lookOverrides.json';
+import LOOKS from './looks.json';
 import { PRO_TEAMS, proTeamById } from './proTeams';
 import { buildTimeline, GAME_MS, timeLabel } from './timeline';
 
@@ -58,7 +60,9 @@ interface ProGame {
   awayProTeamId: number;
 }
 
-const HAIRS: Hair[] = ['short', 'fade', 'buzz', 'curly', 'locs'];
+// Players without a headshot measurement draw a style at roughly how often it shows up on NFL rosters.
+const HAIRS: Hair[] = ['short', 'short', 'short', 'fade', 'fade', 'fade', 'buzz', 'buzz', 'bald', 'curly', 'curly', 'locs', 'locs', 'afro', 'long', 'bun'];
+const BEARDS: Beard[] = ['none', 'none', 'none', 'none', 'none', 'none', 'none', 'stubble', 'stubble', 'stubble', 'stubble', 'mustache', 'goatee', 'goatee', 'goatee', 'full', 'full', 'full', 'full', 'full'];
 const HAIR_COLORS = ['#1d1411', '#5a3a22', '#7a5534', '#d4a650', '#2a1d15'];
 const PRO_BY_ABBREV = new Map(Object.values(PRO_TEAMS).map(t => [t.abbrev, t]));
 
@@ -72,18 +76,57 @@ function ownerOf(members: Map<string, any>, team: any): string {
   return names.join(' & ');
 }
 
-function lookOf(id: number, pos: Pos): Pick<Player, 'skin' | 'hair' | 'hc' | 'beard'> {
+// Looks measured from ESPN headshots by tools/looks/build_looks.py:
+// [skin, hair color ('' when a headband or cap hides it), hair style, beard, headband?].
+const MEASURED: Record<string, [string, string, Hair, Beard, string?]> = LOOKS as any;
+
+// Hand fixes for what a headshot can't show (locs tucked under a headband, say), keyed by
+// ESPN player id. Only the fields given replace the measured look; name is for the reader.
+export interface LookOverride {
+  name: string;
+  hair?: Hair;
+  beard?: Beard;
+  hc?: string;
+  sc?: string;
+  band?: string | null;
+}
+export const LOOK_OVERRIDES: Record<string, LookOverride> = OVERRIDES as any;
+
+type Look = Pick<Player, 'skin' | 'sc' | 'hair' | 'hc' | 'beard' | 'band'>;
+
+function lookOf(id: number, pos: Pos): Look {
   const rng = mulberry(id);
   const skin = Math.floor(rng() * 5);
   const hair = rng();
   const hc = rng();
   const beard = rng();
-  return {
+  const look: Look = {
     skin,
-    hair: pos === 'DST' ? 'helmet' : HAIRS[Math.floor(hair * 5)],
+    hair: pos === 'DST' ? 'helmet' : HAIRS[Math.floor(hair * HAIRS.length)],
     hc: HAIR_COLORS[Math.floor(hc * 5)],
-    beard: beard < 0.35,
+    beard: pos === 'DST' ? 'none' : BEARDS[Math.floor(beard * BEARDS.length)],
   };
+  const measured = pos === 'DST' ? undefined : MEASURED[String(id)];
+  if (measured) {
+    const [sc, hairColor, style, beardStyle, band] = measured;
+    look.sc = sc;
+    // No readable hair color (headband, cap) means dark hair, not a random blonde.
+    look.hc = hairColor || HAIR_COLORS[0];
+    look.hair = style;
+    look.beard = beardStyle;
+    if (band) look.band = band;
+  }
+  const fix = pos === 'DST' ? undefined : LOOK_OVERRIDES[String(id)];
+  if (fix) {
+    if (fix.hair) look.hair = fix.hair;
+    if (fix.beard) look.beard = fix.beard;
+    if (fix.hc) look.hc = fix.hc;
+    if (fix.sc) look.sc = fix.sc;
+    // null takes a detected headband off; a color puts one on.
+    if (fix.band === null) delete look.band;
+    else if (fix.band) look.band = fix.band;
+  }
+  return look;
 }
 
 export function proTeamsOf(season: any): any[] {

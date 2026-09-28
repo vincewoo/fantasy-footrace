@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { fmt, sgn } from '../model/derive';
 import type { EventKind, PlayEvent, Player, Side, TeamColors } from '../model/types';
+import { CREAM, DEFAULT_HAIR, Head, INK } from './Head';
 
 export const ANIM: Record<EventKind, string> = {
   pass: 'throw',
@@ -28,8 +29,6 @@ export function celebrationOf(ev: PlayEvent): Celebration {
   return CELEBRATIONS[ev.id % CELEBRATIONS.length];
 }
 
-const INK = '#1c1a22';
-const CREAM = '#fffaf0';
 const SK = ['#f3cfae', '#dfa97f', '#b67b52', '#8a5634', '#5e3a22'];
 
 export interface AvatarProps {
@@ -53,52 +52,18 @@ export function trackLeft(f: number): string {
   return `calc(18px + (100% - 36px) * ${f.toFixed(4)})`;
 }
 
-function hair(p: Player, T: TeamColors): { back: JSX.Element[]; front: JSX.Element[] } {
-  const B = '2px solid ' + INK;
-  const hc = p.hc;
-  const back: JSX.Element[] = [];
-  const front: JSX.Element[] = [];
-  const cap = (hh: number, rad: string) => (
-    <div
-      key="cap"
-      style={{ position: 'absolute', left: -2, right: -2, top: -3, height: hh, background: hc, border: B, borderBottom: 'none', borderRadius: rad }}
-    />
+// Limb pivots in the 34x42 figure box: shoulders for the arms, hips for the legs.
+const PIVOT = { armB: '8.6px 20px', armF: '25.4px 20px', legB: '13.4px 29px', legF: '20.6px 29px' };
+
+// An arm is a sleeve-topped stroke hanging from the shoulder, outlined by a fatter ink stroke under it.
+function armArt(d: string, sleeve: string, skin: string, c1: string): JSX.Element {
+  return (
+    <>
+      <path d={d} stroke={INK} strokeWidth={6.4} strokeLinecap="round" fill="none" />
+      <path d={d} stroke={skin} strokeWidth={3.2} strokeLinecap="round" fill="none" />
+      <path d={sleeve} stroke={c1} strokeWidth={3.4} strokeLinecap="round" fill="none" />
+    </>
   );
-  switch (p.hair) {
-    case 'short':
-      front.push(cap(12, '15px 15px 4px 4px'));
-      break;
-    case 'fade':
-      front.push(cap(9, '15px 15px 2px 2px'));
-      break;
-    case 'buzz':
-      front.push(
-        <div key="bz" style={{ position: 'absolute', left: 2, right: 2, top: 0, height: 7, background: hc, borderRadius: '12px 12px 2px 2px', opacity: 0.85 }} />,
-      );
-      break;
-    case 'curly':
-      [-4, 4, 12, 19].forEach((x, j) => front.push(
-        <div key={'c' + j} style={{ position: 'absolute', left: x, top: -7 + (j % 2), width: 13, height: 12, borderRadius: '50%', background: hc, border: B }} />,
-      ));
-      break;
-    case 'locs':
-      [[-5, 4, 18], [-1, 8, 16], [24, 6, 12]].forEach(([x, y, hh], j) => back.push(
-        <div key={'lc' + j} style={{ position: 'absolute', left: x, top: y, width: 6, height: hh, background: hc, border: B, borderRadius: 3 }} />,
-      ));
-      front.push(cap(10, '15px 15px 3px 3px'));
-      break;
-    case 'helmet':
-      front.push(
-        <div key="hm" style={{ position: 'absolute', left: -3, right: -3, top: -4, height: 17, background: T.c1, border: B, borderRadius: '16px 16px 5px 5px', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', left: '42%', width: 4, top: 0, bottom: 0, background: T.c2 }} />
-        </div>,
-      );
-      front.push(
-        <div key="fm" style={{ position: 'absolute', right: -6, top: 10, width: 10, height: 13, border: '2px solid #8f969c', borderLeft: 'none', borderRadius: '0 7px 7px 0' }} />,
-      );
-      break;
-  }
-  return { back, front };
 }
 
 const CELLS: Record<Celebration, { body: string | null; armF: string | null; armB: string | null; legF: string | null; legB: string | null; face: boolean; ball: boolean }> = {
@@ -120,7 +85,7 @@ function figure(
   cel: Celebration | null = null,
 ): JSX.Element {
   const B = '2px solid ' + INK;
-  const skin = SK[p.skin];
+  const skin = p.sc ?? SK[p.skin];
   if (nap) a = null;
   if (nap || isOut) boost = false;
   const TD = a === 'td' || a === 'catchTD' || a === 'throwTD';
@@ -158,11 +123,12 @@ function figure(
             : isOut ? 'none' : `av-idle 1.1s steps(2) ${-(i * 0.17).toFixed(2)}s infinite`;
   const run = !BANNER && a && !['kick', 'hurt', 'throw', 'sack'].includes(a);
   const legAnim = (d: number, name: string | null) => withCel(run ? `leg .16s steps(2) ${(0.4 + d).toFixed(2)}s 7 alternate` : 'none', name);
-  const leg = (left: number, anim: string, key: string) => (
-    <div
-      key={key}
-      style={{ position: 'absolute', left, bottom: 3, width: 7, height: 10, background: T.c2, border: B, borderRadius: '2px 2px 3px 3px', transformOrigin: '50% 0', animation: anim }}
-    />
+  const limb = (origin: string, anim: string): CSSProperties => ({ transformBox: 'view-box', transformOrigin: origin, animation: anim });
+  const leg = (x: number, origin: string, anim: string) => (
+    <g style={limb(origin, anim)}>
+      <rect x={x} y={29} width={6} height={8.6} rx={1.6} fill={T.c2} stroke={INK} strokeWidth={2} strokeLinejoin="round" />
+      <path d={`M${x - 0.6} 37.6 h7.6 a1.4 1.4 0 0 1 0 2.8 h-7.6 z`} fill={INK} />
+    </g>
   );
   const armFbase = BANNER ? 'none'
     : (a === 'throw' || a === 'throwTD' || a === 'int') ? 'arm-throw 1.4s steps(18)'
@@ -171,39 +137,37 @@ function figure(
     : (a === 'catch' || a === 'takeaway') ? 'arm-up-b 1.6s steps(20)' : 'none';
   const armF = withCel(armFbase, C ? C.armF : null);
   const armB = withCel(armBbase, C ? C.armB : null);
-  const arm = (left: number, anim: string, key: string) => (
-    <div
-      key={key}
-      style={{ position: 'absolute', left, bottom: 13, width: 6, height: 12, background: skin, border: B, borderRadius: 3, transformOrigin: '50% 2px', animation: anim, overflow: 'hidden' }}
-    >
-      <div style={{ height: 4, background: T.c1 }} />
-    </div>
-  );
   const mood = BANNER ? 'happy'
     : (a === 'int' || a === 'fumble' || a === 'hurt' || (isOut && !a)) ? 'sad'
       : (TD || a === 'catch' || a === 'takeaway' || a === 'sack') ? 'happy' : 'norm';
-  const mc = p.beard ? CREAM : INK;
-  const mouth: CSSProperties = mood === 'sad'
-    ? { top: 18, left: 15, width: 7, height: 4, borderTop: '2px solid ' + mc, borderRadius: '5px 5px 0 0' }
-    : mood === 'happy'
-      ? { top: 16, left: 14, width: 8, height: 5, background: mc, borderRadius: '0 0 5px 5px' }
-      : { top: 17, left: 15, width: 6, height: 2, background: mc, borderRadius: 1 };
-  const hr = hair(p, T);
-  const eyeH = nap ? 2 : mood === 'happy' ? 3 : 5;
-  if (nap) Object.assign(mouth, { top: 17, left: 16, width: 4, height: 4, background: mc, borderTop: 'none', borderRadius: '50%' });
   const faceAnim = C && C.face ? 'cel-face-away 1.8s steps(1) infinite' : undefined;
-  const head = (
-    <div key="hw" style={{ position: 'absolute', left: 3, bottom: 24, width: 28, height: 25 }}>
-      {hr.back}
-      <div key="hd" style={{ position: 'absolute', inset: 0, background: skin, border: B, borderRadius: '50%', overflow: 'hidden' }}>
-        {p.beard ? <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 10, background: p.hc }} /> : null}
-        <div style={{ position: 'absolute', left: 19, top: 15, width: 5, height: 3, borderRadius: '50%', background: 'rgba(255,110,110,.45)', animation: faceAnim }} />
-        <div style={{ position: 'absolute', left: 12, top: 9, width: 3, height: eyeH, background: INK, borderRadius: 2, animation: faceAnim }} />
-        <div style={{ position: 'absolute', left: 19, top: 9, width: 3, height: eyeH, background: INK, borderRadius: 2, animation: faceAnim }} />
-        <div style={{ position: 'absolute', ...mouth, animation: faceAnim }} />
-      </div>
-      {hr.front}
-    </div>
+  const art = (
+    <svg key="art" width={34} height={42} viewBox="0 0 34 42" style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }}>
+      <g style={limb(PIVOT.armB, armB)}>{armArt('M8.6 20 C6.4 22 5.4 25 5.4 28', 'M8.8 19.6 C7.4 20.6 6.6 21.8 6.2 23', skin, T.c1)}</g>
+      {leg(10.4, PIVOT.legB, legAnim(0, C ? C.legB : null))}
+      {leg(17.6, PIVOT.legF, a === 'kick' ? 'leg-kick 1.4s steps(18)' : legAnim(0.08, C ? C.legF : null))}
+      <path
+        d="M9.6 17 C11.5 16 22.5 16 24.4 17 C26 17.6 26.6 19 26.4 21 L25.4 30.6 C25.3 31.4 24.7 32 23.8 32 H10.2 C9.3 32 8.7 31.4 8.6 30.6 L7.6 21 C7.4 19 8 17.6 9.6 17 Z"
+        fill={T.c1}
+        stroke={INK}
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+      <text x={17} y={28.2} textAnchor="middle" fontFamily="'Silkscreen', monospace" fontWeight={700} fontSize={8.5} fill={T.numC || '#fff'}>{String(p.num)}</text>
+      <g style={limb(PIVOT.armF, armF)}>{armArt('M25.4 20 C27.6 22 28.6 25 28.6 28', 'M25.2 19.6 C26.6 20.6 27.4 21.8 27.8 23', skin, T.c1)}</g>
+      <g transform="translate(17 5.2)">
+        <Head
+          hair={p.hair}
+          hc={p.hc ?? DEFAULT_HAIR}
+          skin={skin}
+          beard={p.beard ?? 'none'}
+          band={p.band}
+          mood={nap ? 'nap' : mood}
+          colors={T}
+          faceAnim={faceAnim}
+        />
+      </g>
+    </svg>
   );
   const BALL: Record<string, string> = {
     catch: 'ball-in 1.6s linear both',
@@ -255,17 +219,7 @@ function figure(
       style={{ position: 'absolute', inset: 0, animation: bodyAnim, transform: nap ? 'rotate(78deg)' : !a && isOut ? 'rotate(-10deg) translateY(2px)' : 'none', transformOrigin: nap ? '50% 96%' : '50% 90%' }}
     >
       {pack}
-      {arm(3, armB, 'ab')}
-      {leg(10, legAnim(0, C ? C.legB : null), 'l1')}
-      {leg(18, a === 'kick' ? 'leg-kick 1.4s steps(18)' : legAnim(0.08, C ? C.legF : null), 'l2')}
-      <div
-        key="body"
-        style={{ position: 'absolute', left: 5, bottom: 11, width: 24, height: 16, background: T.c1, border: B, borderRadius: '8px 8px 4px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Silkscreen', monospace", fontWeight: 700, fontSize: 9, color: T.numC || '#fff', lineHeight: 1 }}
-      >
-        {String(p.num)}
-      </div>
-      {arm(25, armF, 'af')}
-      {head}
+      {art}
       {ball}
       {celBall}
     </div>
