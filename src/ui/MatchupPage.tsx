@@ -512,9 +512,9 @@ export function MatchupPage({
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <img src="/logo.svg" width={40} height={46} alt="Fantasy Footrace" style={{ display: 'block', flex: 'none', filter: 'drop-shadow(0 3px 0 #1c1a22)' }} />
+            <img src="/logo.svg" width={40} height={46} alt="Gridiron Gang" style={{ display: 'block', flex: 'none', filter: 'drop-shadow(0 3px 0 #1c1a22)' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ fontFamily: LILITA, fontSize: 26, lineHeight: 1, whiteSpace: 'nowrap' }}>Fantasy Footrace</div>
+              <div style={{ fontFamily: LILITA, fontSize: 26, lineHeight: 1, whiteSpace: 'nowrap' }}>Gridiron Gang</div>
               <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566', display: w < 520 ? 'none' : 'block' }}>{subtitle}</div>
             </div>
           </div>

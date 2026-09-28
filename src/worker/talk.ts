@@ -3,7 +3,7 @@ const TEAM = /^\d{1,2}$/;
 const BASE64URL = /^[A-Za-z0-9_-]*$/;
 const CONTROL = /\p{Cc}/gu;
 const KEY_PREFIX = 'key.';
-const PROTOCOL = 'footrace';
+const PROTOCOL = 'gridiron-gang';
 const MAX_TEXT = 24;
 const FULL_CLOSE = 1013;
 

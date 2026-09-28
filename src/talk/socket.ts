@@ -96,7 +96,7 @@ export function connectTalk(
   };
 
   const open = (): void => {
-    const next = new SocketImpl(url, ['footrace', keyProtocol(key)]);
+    const next = new SocketImpl(url, ['gridiron-gang', keyProtocol(key)]);
     socket = next;
     next.onopen = () => {
       attempts = 0;
