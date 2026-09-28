@@ -354,7 +354,7 @@ export function Avatar({ player: p, colors: T, side, lane: i, pts, event: ev, ou
   const tagRight = pct > (compact ? 55 : 78);
   return (
     <div
-      style={{ position: 'absolute', left: trackLeft(pct / 100), bottom: 1, width: 34, height: 42, marginLeft: -17, zIndex: a ? 9 : 2, transition: scrubbing ? 'left .15s linear' : 'left 1s cubic-bezier(.3,.75,.35,1) .4s', filter: isOut ? 'grayscale(.85)' : 'none' }}
+      style={{ position: 'absolute', left: trackLeft(pct / 100), bottom: 1, width: 34, height: 42, marginLeft: -17, zIndex: ev && !nap ? 9 : 2, transition: scrubbing ? 'left .15s linear' : 'left 1s cubic-bezier(.3,.75,.35,1) .4s', filter: isOut ? 'grayscale(.85)' : 'none' }}
     >
       <div key="sh" style={{ position: 'absolute', left: 6, bottom: 0, width: 22, height: 5, borderRadius: '50%', background: 'rgba(20,40,10,.35)' }} />
       {lines}

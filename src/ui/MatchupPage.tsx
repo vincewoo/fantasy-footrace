@@ -480,7 +480,7 @@ export function MatchupPage({
     const nth = slate.events.filter(e => TDK[e.kind]).findIndex(e => e.id === banner.e.id);
     bannerHost = banner.e.lane;
     bannerEl = (
-      <div key={'b' + banner.id} style={{ position: 'absolute', left: 0, right: 0, top: '50%', zIndex: 40, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div key={'b' + banner.id} style={{ position: 'absolute', left: 0, right: 0, top: '50%', zIndex: 30, transform: 'translateY(-50%)', display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: 0, animation: banner.good ? 'banner 3.2s steps(32) forwards' : 'banner 1.9s steps(19) forwards' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
             <div style={{ fontFamily: LILITA, fontSize: compact ? 38 : 68, lineHeight: 1, color: banner.good ? '#ffd23f' : '#ff8a73', WebkitTextStroke: (compact ? 2 : 3) + 'px ' + INK, textShadow: '0 5px 0 ' + INK, whiteSpace: 'nowrap' }}>{banner.text}</div>
@@ -671,7 +671,7 @@ export function MatchupPage({
               </div>
             </div>
             {lanes.map((ln, i) => (
-              <div key={slate.lanes[i].me.id} style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(0,1fr)' : '176px minmax(0,1fr)', gap: compact ? 0 : 8, alignItems: 'stretch', ...(bannerHost === i ? { position: 'relative', zIndex: 30 } as CSSProperties : null) }}>
+              <div key={slate.lanes[i].me.id} style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(0,1fr)' : '176px minmax(0,1fr)', gap: compact ? 0 : 8, alignItems: 'stretch', ...(bannerHost === i ? { position: 'relative' } as CSSProperties : null) }}>
                 {compact ? (
                   <div data-lane-header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '2px 2px 0', color: '#f3f7e6' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
