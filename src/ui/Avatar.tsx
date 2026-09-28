@@ -23,10 +23,12 @@ export const ANIM: Record<EventKind, string> = {
 
 export type Celebration = 'bird' | 'twerk' | 'griddy' | 'spike' | 'luddy' | 'dunk' | 'heisman' | 'ickey';
 
-export const CELEBRATIONS: readonly Celebration[] = ['griddy', 'bird', 'twerk', 'spike', 'luddy', 'dunk', 'heisman', 'ickey'];
+export const CELEBRATIONS: readonly Celebration[] = ['griddy', 'dunk', 'bird', 'luddy', 'twerk', 'heisman', 'spike', 'ickey'];
 
-export function celebrationOf(ev: PlayEvent): Celebration {
-  return CELEBRATIONS[ev.id % CELEBRATIONS.length];
+// nth is the touchdown's place among the slate's touchdowns, so back-to-back scores walk the whole
+// list. Event ids count every play, and the few that land on touchdowns can skip dances entirely.
+export function celebrationOf(ev: PlayEvent, nth?: number): Celebration {
+  return CELEBRATIONS[(nth ?? ev.id) % CELEBRATIONS.length];
 }
 
 const SK = ['#f3cfae', '#dfa97f', '#b67b52', '#8a5634', '#5e3a22'];
@@ -251,8 +253,8 @@ function figure(
   );
 }
 
-export function CelebrationFigure({ player, colors, event, size }: { player: Player; colors: TeamColors; event: PlayEvent; size: number }): JSX.Element {
-  const cel = celebrationOf(event);
+export function CelebrationFigure({ player, colors, event, size, nth }: { player: Player; colors: TeamColors; event: PlayEvent; size: number; nth?: number }): JSX.Element {
+  const cel = celebrationOf(event, nth);
   return (
     <div style={{ position: 'relative', width: 34 * size, height: 42 * size, marginRight: cel === 'dunk' ? 14 * size : 0, pointerEvents: 'none' }}>
       <div style={{ position: 'absolute', left: 0, top: 0, width: 34, height: 42, transform: `scale(${size})`, transformOrigin: '0 0' }}>

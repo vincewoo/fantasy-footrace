@@ -176,15 +176,23 @@ const evId = (kind: EventKind, pts: number, id: number): PlayEvent => ({ ...ev(k
 it('cycles the eight celebrations by event id', () => {
   expect([0, 1, 2, 3, 4, 5, 6, 7, 8].map(n => celebrationOf(evId('recTD', 6.2, n)))).toEqual([
     'griddy',
-    'bird',
-    'twerk',
-    'spike',
-    'luddy',
     'dunk',
+    'bird',
+    'luddy',
+    'twerk',
     'heisman',
+    'spike',
     'ickey',
     'griddy',
   ]);
+});
+
+it('walks the celebrations by touchdown count ahead of event id', () => {
+  const ids = [3, 11, 19, 27, 35, 43, 51, 59];
+  const cels = ids.map((id, nth) => celebrationOf(evId('recTD', 6.2, id), nth));
+
+  expect(new Set(cels).size).toBe(8);
+  expect(celebrationOf(evId('recTD', 6.2, 3), 1)).toBe('dunk');
 });
 
 it('keeps the lane touchdown catch on its pre play for id 1', () => {
@@ -215,6 +223,7 @@ it('runs every lane touchdown on its pre play with no celebration', () => {
   expect(pass).toContain('>TD PASS!<');
 });
 
+// n is the celebration's slot: 0 Griddy, 1 Dunk, 2 Bird, 3 Luddy, 4 Twerk, 5 Heisman, 6 Spike, 7 Ickey.
 function bannerFigure(n: number, kind: EventKind = 'recTD'): string {
   return renderToStaticMarkup(
     <CelebrationFigure player={ALLEN} colors={BUF} event={evId(kind, 6.2, n)} size={2} />,
@@ -230,7 +239,7 @@ it('dances the Griddy in the banner figure', () => {
 });
 
 it('dances the Dirty Bird in the banner figure', () => {
-  const m = bannerFigure(1);
+  const m = bannerFigure(2);
 
   expect(m).toContain('cel-bird-arm-f 1.8s steps(18) infinite');
   expect(m).toContain('cel-bird-arm-b 1.8s steps(18) infinite');
@@ -239,7 +248,7 @@ it('dances the Dirty Bird in the banner figure', () => {
 });
 
 it('hides the face on the banner Twerk', () => {
-  const m = bannerFigure(2);
+  const m = bannerFigure(4);
 
   expect(count(m, 'cel-face-away 1.8s steps(1) infinite')).toBe(1);
   expect(m).toContain('cel-twerk-body 1.8s steps(18) infinite');
@@ -248,7 +257,7 @@ it('hides the face on the banner Twerk', () => {
 });
 
 it('shows the ball on the banner Spike', () => {
-  const m = bannerFigure(3);
+  const m = bannerFigure(6);
 
   expect(m).toContain('cel-spike-ball 1.8s steps(18) infinite');
   expect(m).toContain('cel-spike-arm 1.8s steps(18) infinite');
@@ -256,7 +265,7 @@ it('shows the ball on the banner Spike', () => {
 });
 
 it('dances the Luddy in the banner figure', () => {
-  const m = bannerFigure(4);
+  const m = bannerFigure(3);
 
   expect(m).toContain('cel-luddy-body 1.8s steps(18) infinite');
   expect(m).toContain('cel-luddy-leg-f 1.8s steps(18) infinite');
@@ -266,7 +275,7 @@ it('dances the Luddy in the banner figure', () => {
 });
 
 it('dunks the ball over a goalpost only in the banner Dunk', () => {
-  const m = bannerFigure(5);
+  const m = bannerFigure(1);
 
   expect(m).toContain('cel-dunk-body 1.8s steps(18) infinite');
   expect(m).toContain('cel-dunk-ball 1.8s steps(18) infinite');
@@ -276,7 +285,7 @@ it('dunks the ball over a goalpost only in the banner Dunk', () => {
   expect(count(m, '<svg')).toBe(2);
   expect(count(m, '#8a4b22')).toBe(1);
 
-  for (const n of [0, 1, 2, 3, 4, 6, 7]) {
+  for (const n of [0, 2, 3, 4, 5, 6, 7]) {
     const other = bannerFigure(n);
     expect(other).not.toContain('cel-dunk-post');
     expect(count(other, '<svg')).toBe(1);
@@ -285,7 +294,7 @@ it('dunks the ball over a goalpost only in the banner Dunk', () => {
 });
 
 it('strikes the Heisman pose with the ball tucked', () => {
-  const m = bannerFigure(6);
+  const m = bannerFigure(5);
 
   expect(m).toContain('cel-heisman-arm-f 1.8s steps(18) infinite');
   expect(m).toContain('cel-heisman-leg 1.8s steps(18) infinite');
@@ -315,7 +324,7 @@ it('loops every banner celebration immediately in a scaled box', () => {
     }
   }
 
-  const m = bannerFigure(1);
+  const m = bannerFigure(2);
   expect(m).toContain('width:68px');
   expect(m).toContain('height:84px');
   expect(m).toContain('transform:scale(2)');
