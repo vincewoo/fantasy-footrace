@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mobile Preview</title>
+    <!-- Dev-only: `pnpm dev`, then open /preview.html. Not part of `vite build`. -->
+    <style>
+      html, body { margin: 0; background: #2a2730; }
+      .canvas { display: flex; gap: 48px; padding: 48px; flex-wrap: wrap; align-items: flex-start; font-family: 'Nunito', sans-serif; }
+      .device { display: flex; flex-direction: column; gap: 12px; }
+      .label { font-family: monospace; color: #fffaf0; font-size: 14px; }
+      .frame { border: 10px solid #111; overflow: hidden; background: #000; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+      .frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+    </style>
+  </head>
+  <body>
+    <div class="canvas">
+      <div class="device">
+        <div class="label">iPhone 15 · 393 × 852</div>
+        <div class="frame" style="width:393px;height:852px;border-radius:48px;"><iframe src="/"></iframe></div>
+      </div>
+      <div class="device">
+        <div class="label">Small Android · 360 × 780</div>
+        <div class="frame" style="width:360px;height:780px;border-radius:36px;"><iframe src="/"></iframe></div>
+      </div>
+      <div class="device">
+        <div class="label">Landscape phone · 852 × 393</div>
+        <div class="frame" style="width:852px;height:393px;border-radius:40px;"><iframe src="/"></iframe></div>
+      </div>
+    </div>
+  </body>
+</html>

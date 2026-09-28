@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { fmt, sgn, snapshotAt } from '../model/derive';
 import type { PlayEvent, Player, Side, Slate } from '../model/types';
-import { Avatar, CelebrationFigure } from './Avatar';
+import { Avatar, CelebrationFigure, trackLeft } from './Avatar';
 import { advance, cycleSpeed, followLive, goLive, initPlayback, scrubTo, togglePlay, type Playback } from './playback';
 
 const INK = '#1c1a22';
@@ -88,6 +88,11 @@ export function saveSoundPref(on: boolean): void {
 
 function axisLeft(t: number): string {
   return Number((t * 100).toFixed(2)) + '%';
+}
+
+// Compact lanes have no name column, so each player's name is painted on their half of the field.
+function paintedName(half: 'top' | 'bottom'): CSSProperties {
+  return { position: 'absolute', right: 8, [half]: 0, height: '50%', display: 'flex', alignItems: 'center', fontFamily: LILITA, fontSize: 22, letterSpacing: '.04em', textTransform: 'uppercase', color: 'rgba(255,255,255,.34)', whiteSpace: 'nowrap', pointerEvents: 'none' };
 }
 
 export function laneKey(side: Side, lane: number): string {
@@ -368,6 +373,8 @@ export function MatchupPage({
   const now = Date.now();
 
   const info = (p: Player, ptsL: number, key: string) => ({
+    last: p.tag || p.last,
+    status: out.has(key) ? 'OUT' : slate.statusLabel(p, t),
     name: p.name,
     ptsL: fmt(ptsL),
     sub: `${p.team} · ${out.has(key) ? 'OUT' : slate.statusLabel(p, t)} · proj ${fmt(p.proj)}`,
@@ -395,7 +402,7 @@ export function MatchupPage({
       diffColor: d > 0.04 ? ME_TXT : d < -0.04 ? OPP_TXT : '#6b6475',
       stripeT: 'translateX(' + (-Math.min(off, 490) / 6).toFixed(3) + '%)',
       moveT,
-      projLeft: 50 - off + '%',
+      projLeft: trackLeft((50 - off) / 100),
       projOp: off > 50 ? 0 : 1,
       meProjL: fmt(me.proj),
       oppProjL: fmt(opp.proj),
@@ -415,6 +422,7 @@ export function MatchupPage({
           scale={me.proj * 2}
           napping={t < me.window[0]}
           offset={off}
+          compact={compact}
         />
       ),
       oppAv: (
@@ -431,6 +439,7 @@ export function MatchupPage({
           scale={opp.proj * 2}
           napping={t < opp.window[0]}
           offset={off}
+          compact={compact}
         />
       ),
     };
@@ -482,6 +491,11 @@ export function MatchupPage({
 
   const clock = final ? 'FINAL' : liveClock && !isReplay && t < 1 ? liveClock() : slate.clockLabel(t);
 
+  const modeLabel = final ? 'FINAL' : isReplay ? 'REPLAY' : 'LIVE';
+  const modeDot = final ? '#cdef8a' : isReplay ? '#ffd23f' : '#ff5a4a';
+  const blinkAnim = final ? 'none' : 'blink 1s steps(1) infinite';
+  const latest = ticker[0] ?? null;
+
   const axisNowStyle: CSSProperties = {
     position: 'absolute',
     top: 7,
@@ -500,14 +514,54 @@ export function MatchupPage({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <img src="/logo.svg" width={40} height={46} alt="Fantasy Footrace" style={{ display: 'block', flex: 'none', filter: 'drop-shadow(0 3px 0 #1c1a22)' }} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ fontFamily: LILITA, fontSize: 26, lineHeight: 1 }}>Fantasy Footrace</div>
-              <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566' }}>{subtitle}</div>
+              <div style={{ fontFamily: LILITA, fontSize: 26, lineHeight: 1, whiteSpace: 'nowrap' }}>Fantasy Footrace</div>
+              <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566', display: w < 520 ? 'none' : 'block' }}>{subtitle}</div>
             </div>
           </div>
           {headerExtra}
-          <button onClick={toggleSound} {...press('sound')} style={{ fontFamily: SILK, fontSize: 11, fontWeight: 700, padding: '8px 12px', background: '#fffaf0', border: '2px solid #1c1a22', borderRadius: 8, boxShadow: '0 3px 0 #1c1a22', cursor: 'pointer', color: '#1c1a22', ...pressedStyle('sound', 2) }}>{sound ? 'SOUND: ON' : 'SOUND: OFF'}</button>
+          <button onClick={toggleSound} {...press('sound')} style={{ fontFamily: SILK, fontSize: 11, fontWeight: 700, padding: '8px 12px', background: '#fffaf0', border: '2px solid #1c1a22', borderRadius: 8, boxShadow: '0 3px 0 #1c1a22', cursor: 'pointer', color: '#1c1a22', ...pressedStyle('sound', 2) }}>{compact ? (sound ? 'SFX ON' : 'SFX OFF') : sound ? 'SOUND: ON' : 'SOUND: OFF'}</button>
         </div>
 
+        {compact ? (
+          <div data-compact-scoreboard style={{ position: 'sticky', top: 8, zIndex: 35, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ position: 'relative', background: '#d8d0bb', border: '3px solid #1c1a22', borderRadius: 14, boxShadow: '0 4px 0 #1c1a22', padding: 7 }}>
+              <div style={{ backgroundColor: '#253021', backgroundImage: 'repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px)', border: '2px solid #1c1a22', borderRadius: 8, padding: '8px 10px', display: 'grid', gridTemplateColumns: 'auto minmax(0,1fr) auto', gap: 10, alignItems: 'center', color: '#cdef8a' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: SILK, fontSize: 9 }}><div style={{ width: 8, height: 8, background: '#4a82f0', border: '1.5px solid #cdef8a' }} />{slate.me.owner}</div>
+                  <div style={{ fontFamily: SILK, fontSize: 26, lineHeight: 1, fontWeight: 700, color: '#eaf7c8' }}>{fmt(totals.me)}</div>
+                  <div style={{ fontFamily: SILK, fontSize: 8, whiteSpace: 'nowrap' }}>{`PROJ ${fmt(projected.me)}`}</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: SILK, fontSize: 9, whiteSpace: 'nowrap' }}>
+                    <div style={{ width: 7, height: 7, background: modeDot, animation: blinkAnim }} />
+                    <div>{`${modeLabel} · ${clock}`}</div>
+                  </div>
+                  <div style={{ width: '100%', height: 12, border: '1.5px solid #cdef8a', display: 'flex', padding: 1.5, gap: 1.5 }}>
+                    <div style={{ width: wp + '%', background: '#4a82f0', transition: 'width .6s steps(8)' }} />
+                    <div style={{ flex: 1, background: '#e5583f' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontFamily: SILK, fontSize: 8, whiteSpace: 'nowrap' }}>
+                    <div>{wp + '%'}</div><div style={{ opacity: 0.8 }}>WIN %</div><div>{100 - wp + '%'}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: SILK, fontSize: 9 }}>{slate.opp.owner}<div style={{ width: 8, height: 8, background: '#e5583f', border: '1.5px solid #cdef8a' }} /></div>
+                  <div style={{ fontFamily: SILK, fontSize: 26, lineHeight: 1, fontWeight: 700, color: '#eaf7c8' }}>{fmt(totals.opp)}</div>
+                  <div style={{ fontFamily: SILK, fontSize: 8, whiteSpace: 'nowrap' }}>{`PROJ ${fmt(projected.opp)}`}</div>
+                </div>
+              </div>
+              {bubbleEl(state.bubbles.me, 'me')}
+              {bubbleEl(state.bubbles.opp, 'opp')}
+            </div>
+            {latest ? (
+              <div data-latest-play style={{ display: 'grid', gridTemplateColumns: '10px minmax(0,1fr) auto', gap: 8, alignItems: 'center', background: '#fffaf0', border: '2px solid #1c1a22', borderRadius: 10, boxShadow: '0 3px 0 #1c1a22', padding: '6px 10px' }}>
+                <div style={{ width: 10, height: 10, background: latest.sideColor, border: '2px solid #1c1a22' }} />
+                <div style={{ fontSize: 12, fontWeight: 800, lineHeight: 1.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{latest.text}</div>
+                <div style={{ fontFamily: SILK, fontSize: 11, fontWeight: 700, padding: '1px 5px', border: '2px solid #1c1a22', borderRadius: 5, background: latest.pillBg }}>{latest.ptsL}</div>
+              </div>
+            ) : null}
+          </div>
+        ) : (
         <div style={{ position: 'relative', background: '#d8d0bb', border: '3px solid #1c1a22', borderRadius: 18, boxShadow: '0 6px 0 #1c1a22', padding: 12 }}>
           <div style={{ position: 'relative', backgroundColor: '#253021', backgroundImage: 'repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px)', border: '3px solid #1c1a22', borderRadius: 10, padding: '16px 18px', display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : '1fr auto 1fr', gap: 16, alignItems: 'center', color: '#cdef8a' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
@@ -521,8 +575,8 @@ export function MatchupPage({
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, gridColumn: compact ? '1 / -1' : 'auto', order: compact ? 3 : 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: SILK, fontSize: 12, letterSpacing: '.08em', whiteSpace: 'nowrap' }}>
-                <div style={{ width: 9, height: 9, background: final ? '#cdef8a' : isReplay ? '#ffd23f' : '#ff5a4a', animation: final ? 'none' : 'blink 1s steps(1) infinite' }} />
-                <div>{final ? 'FINAL' : isReplay ? 'REPLAY' : 'LIVE'}</div>
+                <div style={{ width: 9, height: 9, background: modeDot, animation: blinkAnim }} />
+                <div>{modeLabel}</div>
               </div>
               <div style={{ fontFamily: SILK, fontSize: 28, fontWeight: 700, color: '#eaf7c8', lineHeight: 1, whiteSpace: 'nowrap' }}>{clock}</div>
               <div style={{ width: '100%', minWidth: 220, maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -550,9 +604,10 @@ export function MatchupPage({
           {bubbleEl(state.bubbles.me, 'me')}
           {bubbleEl(state.bubbles.opp, 'opp')}
         </div>
+        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566', marginRight: 4 }}>TALK TRASH</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: compact ? 'nowrap' : 'wrap', overflowX: 'auto', margin: '0 -14px', padding: '0 14px 4px', scrollbarWidth: 'none' }}>
+          <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566', marginRight: 4, whiteSpace: 'nowrap', flex: 'none' }}>TALK TRASH</div>
           {TAUNTS.map(text => (
             <button
               key={text}
@@ -560,7 +615,7 @@ export function MatchupPage({
               onMouseEnter={() => setHovered(text)}
               onMouseLeave={() => setHovered(null)}
               {...press(text)}
-              style={{ fontFamily: LILITA, fontSize: 14, whiteSpace: 'nowrap', padding: '6px 12px', background: hovered === text ? '#ffd23f' : '#fffaf0', border: '2px solid #1c1a22', borderRadius: 999, boxShadow: '0 3px 0 #1c1a22', cursor: 'pointer', color: '#1c1a22', ...pressedStyle(text, 2) }}
+              style={{ fontFamily: LILITA, fontSize: 14, whiteSpace: 'nowrap', padding: '6px 12px', background: hovered === text ? '#ffd23f' : '#fffaf0', border: '2px solid #1c1a22', borderRadius: 999, boxShadow: '0 3px 0 #1c1a22', cursor: 'pointer', color: '#1c1a22', flex: 'none', ...pressedStyle(text, 2) }}
             >
               {text}
             </button>
@@ -579,9 +634,9 @@ export function MatchupPage({
                 placeholder="SAY SOMETHING"
                 maxLength={24}
                 disabled={!talk || !talk.connected}
-                style={{ fontFamily: LILITA, fontSize: 14, width: 160, padding: '6px 12px', background: CREAM, border: '2px solid ' + INK, borderRadius: 999, color: INK }}
+                style={{ fontFamily: LILITA, fontSize: 14, width: 160, flex: 'none', padding: '6px 12px', background: CREAM, border: '2px solid ' + INK, borderRadius: 999, color: INK }}
               />
-              <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566' }}>
+              <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566', whiteSpace: 'nowrap', flex: 'none' }}>
                 {talk && talk.connected
                   ? slate.opp.owner.includes(' & ')
                     ? talk.oppWatching ? `${slate.opp.owner} ARE WATCHING` : `${slate.opp.owner} AREN'T HERE`
@@ -602,8 +657,8 @@ export function MatchupPage({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 10, height: 10, background: '#e5583f', border: '2px solid #1c1a22' }} />{slate.opp.owner}</div>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '58px minmax(0,1fr)' : '176px minmax(0,1fr)', gap: 8 }}>
-              <div />
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(0,1fr)' : '176px minmax(0,1fr)', gap: 8 }}>
+              {compact ? null : <div />}
               <div style={{ position: 'relative', height: 12, fontFamily: SILK, fontSize: 10, color: '#e6f2cf' }}>
                 <div style={{ position: 'absolute', left: 0, whiteSpace: 'nowrap' }}>0</div>
                 <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', color: '#ffd23f' }}>PROJ</div>
@@ -611,14 +666,22 @@ export function MatchupPage({
               </div>
             </div>
             {lanes.map((ln, i) => (
-              <div key={slate.lanes[i].me.id} style={{ display: 'grid', gridTemplateColumns: compact ? '58px minmax(0,1fr)' : '176px minmax(0,1fr)', gap: 8, alignItems: 'stretch', ...(bannerHost === i ? { position: 'relative', zIndex: 30 } as CSSProperties : null) }}>
+              <div key={slate.lanes[i].me.id} style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(0,1fr)' : '176px minmax(0,1fr)', gap: compact ? 0 : 8, alignItems: 'stretch', ...(bannerHost === i ? { position: 'relative', zIndex: 30 } as CSSProperties : null) }}>
+                {compact ? (
+                  <div data-lane-header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '2px 2px 0', color: '#f3f7e6' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+                      <div style={{ fontFamily: LILITA, fontSize: 16, lineHeight: 1 }}>{ln.slot}</div>
+                      <div style={{ fontFamily: SILK, fontSize: 9, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ln.me.status}</div>
+                    </div>
+                    <div style={{ fontFamily: SILK, fontSize: 10, fontWeight: 700, padding: '1px 5px', background: '#fffaf0', border: '1.5px solid #1c1a22', borderRadius: 4, color: ln.diffColor, whiteSpace: 'nowrap' }}>{ln.diffL}</div>
+                  </div>
+                ) : (
                 <div style={{ background: '#fffaf0', border: '2px solid #1c1a22', borderRadius: 10, padding: '7px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '2px 6px', flexWrap: 'wrap' }}>
                     <div style={{ fontFamily: LILITA, fontSize: 17, lineHeight: 1, whiteSpace: 'nowrap' }}>{ln.slot}</div>
                     <div style={{ fontFamily: SILK, fontSize: 10, fontWeight: 700, color: ln.diffColor }}>{ln.diffL}</div>
                   </div>
-                  {!compact ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '8px minmax(0,1fr) auto', gap: 5, alignItems: 'center', fontSize: 12, fontWeight: 800 }}>
                           <div style={{ width: 8, height: 8, background: '#4a82f0', border: '1.5px solid #1c1a22' }} />
@@ -635,15 +698,21 @@ export function MatchupPage({
                         </div>
                         <div style={{ fontSize: 10, fontWeight: 600, color: '#6b6475', paddingLeft: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ln.opp.sub}</div>
                       </div>
-                    </div>
-                  ) : null}
+                  </div>
                 </div>
-                <div style={{ position: 'relative', height: 96, margin: '6px 0', border: '2px solid #1c1a22', borderRadius: 6, background: '#5fa844' }}>
+                )}
+                <div style={{ position: 'relative', height: compact ? 84 : 96, margin: '6px 0', border: '2px solid #1c1a22', borderRadius: 6, background: '#5fa844' }}>
                   <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 4 }}>
                     <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '600%', background: 'repeating-linear-gradient(90deg,rgba(255,255,255,.55) 0 2px,transparent 2px 1.6667%),repeating-linear-gradient(90deg,#63ad48 0 1.6667%,#59a13f 1.6667% 3.3333%)', transform: ln.stripeT, transition: ln.moveT }} />
                   </div>
                   <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: '50%', background: 'rgba(74,130,240,.3)', borderRadius: '4px 4px 0 0' }} />
                   <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '50%', background: 'rgba(229,88,63,.28)', borderTop: '2px dashed rgba(28,26,34,.35)', borderRadius: '0 0 4px 4px' }} />
+                  {compact ? (
+                    <>
+                      <div data-painted-name style={paintedName('top')}>{ln.me.last}</div>
+                      <div data-painted-name style={paintedName('bottom')}>{ln.opp.last}</div>
+                    </>
+                  ) : null}
                   <div style={{ position: 'absolute', left: ln.projLeft, opacity: ln.projOp, transition: ln.moveT, top: 0, bottom: 0, width: 4, marginLeft: -2, background: '#ffd23f', borderLeft: '1px solid #1c1a22', borderRight: '1px solid #1c1a22' }} />
                   <div style={{ position: 'absolute', left: ln.projLeft, opacity: ln.projOp, transition: ln.moveT, top: -9, transform: 'translateX(-50%)', fontFamily: SILK, fontSize: 9, fontWeight: 700, lineHeight: 1, padding: '1px 4px', background: '#1f3f86', color: '#fffaf0', border: '1.5px solid #1c1a22', borderRadius: 3, whiteSpace: 'nowrap', zIndex: 8, pointerEvents: 'none' }}>{ln.meProjL}</div>
                   <div style={{ position: 'absolute', left: ln.projLeft, opacity: ln.projOp, transition: ln.moveT, bottom: -9, transform: 'translateX(-50%)', fontFamily: SILK, fontSize: 9, fontWeight: 700, lineHeight: 1, padding: '1px 4px', background: '#8a2a1a', color: '#fffaf0', border: '1.5px solid #1c1a22', borderRadius: 3, whiteSpace: 'nowrap', zIndex: 8, pointerEvents: 'none' }}>{ln.oppProjL}</div>

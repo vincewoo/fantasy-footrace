@@ -304,3 +304,53 @@ it('follows the live clock with the single axis label on a phone', () => {
   expect(now?.[2]).toBe('SUN 5:15 AM');
 });
 
+
+it('swaps in the slim sticky scoreboard and latest-play strip on a phone', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={mockSlate('Half PPR')} initialWidth={390} />);
+  const latest = snapshotAt(HALF, 0.06).past.at(-1);
+
+  expect(m).toContain('data-compact-scoreboard="true" style="position:sticky;top:8px');
+  expect(m).toContain('LIVE · 1:38 PM');
+  expect(m).toContain('>59%<');
+  expect(m).toContain('>41%<');
+  expect(m).toContain('>WIN %<');
+  expect(m).not.toContain('Hail Mary Poppins');
+  expect(m).not.toContain('WIN PROB');
+  expect(m).toContain('data-latest-play');
+  expect(m).toContain(`>${latest?.text}<`);
+  expect(m).toContain('>SFX ON<');
+  expect(m).toContain('display:none">WEEK 4');
+  expect(m).toContain('flex-wrap:nowrap;overflow-x:auto');
+});
+
+it('puts a header above each lane and paints the names on the field on a phone', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={mockSlate('Half PPR')} initialWidth={390} />);
+
+  expect((m.match(/data-lane-header/g) ?? []).length).toBe(9);
+  expect((m.match(/data-painted-name/g) ?? []).length).toBe(18);
+  expect(m).toContain('>Allen<');
+  expect(m).toContain('>Jackson<');
+  expect(m).toContain('>DEN D<');
+  expect(m).not.toContain('>Josh Allen<');
+  expect(m).toContain('height:84px');
+});
+
+it('keeps the full scoreboard and name cards on a wide screen', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={mockSlate('Half PPR')} initialWidth={1200} />);
+
+  expect(m).toContain('Hail Mary Poppins');
+  expect(m).toContain('>Josh Allen<');
+  expect(m).toContain('height:96px');
+  expect(m).toContain('display:block">WEEK 4');
+  expect(m).not.toContain('data-compact-scoreboard');
+  expect(m).not.toContain('data-latest-play');
+  expect(m).not.toContain('data-lane-header');
+  expect(m).not.toContain('data-painted-name');
+});
+
+it('keeps the subtitle on a compact screen wider than 520px', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={mockSlate('Half PPR')} initialWidth={600} />);
+
+  expect(m).toContain('data-compact-scoreboard');
+  expect(m).toContain('display:block">WEEK 4');
+});
