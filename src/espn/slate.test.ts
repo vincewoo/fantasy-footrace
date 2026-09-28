@@ -5,8 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import type { Slate } from '../model/types';
 import LOOKS from './looks.json';
+import OVERRIDES from './lookOverrides.json';
 import { PRO_TEAMS, proTeamById } from './proTeams';
-import { buildSlate, LANE_ORDER, listTeams, posOf, SLOT_LABEL } from './slate';
+import { buildSlate, LANE_ORDER, listTeams, LOOK_OVERRIDES, posOf, SLOT_LABEL } from './slate';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtures', name), 'utf8'));
@@ -314,15 +315,59 @@ describe('buildSlate for the recorded week 3', () => {
     expect({ sc: henry.sc, hc: henry.hc, hair: henry.hair, beard: henry.beard }).toEqual({ sc, hc, hair, beard });
 
     for (const p of players.filter(p => p.pos !== 'DST')) {
-      expect(p.sc).toBe(measured[p.id][0]);
-      expect(p.hair).toBe(measured[p.id][2]);
-      expect(p.beard).toBe(measured[p.id][3]);
+      const fix = LOOK_OVERRIDES[p.id];
+      expect(p.sc).toBe(fix?.sc ?? measured[p.id][0]);
+      expect(p.hair).toBe(fix?.hair ?? measured[p.id][2]);
+      expect(p.beard).toBe(fix?.beard ?? measured[p.id][3]);
       expect(p.band).toBe(measured[p.id][4]);
     }
     for (const p of players.filter(p => p.pos === 'DST')) {
       expect(p.sc).toBeUndefined();
       expect(p.hair).toBe('helmet');
       expect(p.beard).toBe('none');
+    }
+  });
+
+  it('lets a hand override replace only the fields it names', () => {
+    const gibbs = slate.lanes.flatMap(l => [l.me, l.opp]).find(p => p.name === 'Jahmyr Gibbs')!;
+    const [sc, , , beard, band] = (LOOKS as Record<string, string[]>)[gibbs.id];
+
+    expect(LOOK_OVERRIDES[gibbs.id].hair).toBe('locs');
+    expect(gibbs.hair).toBe('locs');
+    expect(gibbs.sc).toBe(sc);
+    expect(gibbs.beard).toBe(beard);
+    expect(gibbs.band).toBe(band);
+  });
+
+  it('can take a detected headband off or put one on', () => {
+    const [id] = Object.entries(LOOKS as Record<string, string[]>).find(([, v]) => v[4])!;
+    const league = structuredClone(miniLeague);
+    league.schedule[0].home.rosterForCurrentScoringPeriod.entries[1] = entry(4, Number(id), 'Banded WR', 3, 8);
+    league.schedule[0].home.rosterForCurrentScoringPeriod.entries[2] = entry(2, 7777777, 'Plain RB', 2, 8);
+    LOOK_OVERRIDES[id] = { name: 'test', band: null };
+    LOOK_OVERRIDES['7777777'] = { name: 'test', band: '#e5583f' };
+    try {
+      const players = buildSlate(league, miniSeason, 1, { timeZone: TZ }).lanes.flatMap(l => [l.me, l.opp]);
+      expect(players.find(p => p.id === id)!.band).toBeUndefined();
+      expect(players.find(p => p.id === '7777777')!.band).toBe('#e5583f');
+    } finally {
+      delete LOOK_OVERRIDES[id];
+      delete LOOK_OVERRIDES['7777777'];
+    }
+  });
+
+  it('keeps every hand override to styles and colors the avatar can draw', () => {
+    const hairs = ['bald', 'buzz', 'short', 'fade', 'curly', 'afro', 'locs', 'long', 'bun'];
+    const beards = ['none', 'stubble', 'mustache', 'goatee', 'full'];
+    const color = /^#[0-9a-f]{6}$/i;
+    for (const [id, fix] of Object.entries(OVERRIDES as Record<string, Record<string, unknown>>)) {
+      expect(id).toMatch(/^\d+$/);
+      expect(typeof fix.name).toBe('string');
+      for (const key of Object.keys(fix)) expect(['name', 'hair', 'beard', 'hc', 'sc', 'band']).toContain(key);
+      if (fix.hair !== undefined) expect(hairs).toContain(fix.hair);
+      if (fix.beard !== undefined) expect(beards).toContain(fix.beard);
+      for (const key of ['hc', 'sc']) if (fix[key] !== undefined) expect(fix[key]).toMatch(color);
+      if (fix.band !== undefined && fix.band !== null) expect(fix.band).toMatch(color);
     }
   });
 

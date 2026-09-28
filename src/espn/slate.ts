@@ -1,5 +1,6 @@
 import type { Beard, Hair, Lane, Player, Pos, Slate, TeamColors } from '../model/types';
 import { mulberry } from '../sim/mock';
+import OVERRIDES from './lookOverrides.json';
 import LOOKS from './looks.json';
 import { PRO_TEAMS, proTeamById } from './proTeams';
 import { buildTimeline, GAME_MS, timeLabel } from './timeline';
@@ -79,6 +80,18 @@ function ownerOf(members: Map<string, any>, team: any): string {
 // [skin, hair color ('' when a headband or cap hides it), hair style, beard, headband?].
 const MEASURED: Record<string, [string, string, Hair, Beard, string?]> = LOOKS as any;
 
+// Hand fixes for what a headshot can't show (locs tucked under a headband, say), keyed by
+// ESPN player id. Only the fields given replace the measured look; name is for the reader.
+export interface LookOverride {
+  name: string;
+  hair?: Hair;
+  beard?: Beard;
+  hc?: string;
+  sc?: string;
+  band?: string | null;
+}
+export const LOOK_OVERRIDES: Record<string, LookOverride> = OVERRIDES as any;
+
 type Look = Pick<Player, 'skin' | 'sc' | 'hair' | 'hc' | 'beard' | 'band'>;
 
 function lookOf(id: number, pos: Pos): Look {
@@ -102,6 +115,16 @@ function lookOf(id: number, pos: Pos): Look {
     look.hair = style;
     look.beard = beardStyle;
     if (band) look.band = band;
+  }
+  const fix = pos === 'DST' ? undefined : LOOK_OVERRIDES[String(id)];
+  if (fix) {
+    if (fix.hair) look.hair = fix.hair;
+    if (fix.beard) look.beard = fix.beard;
+    if (fix.hc) look.hc = fix.hc;
+    if (fix.sc) look.sc = fix.sc;
+    // null takes a detected headband off; a color puts one on.
+    if (fix.band === null) delete look.band;
+    else if (fix.band) look.band = fix.band;
   }
   return look;
 }

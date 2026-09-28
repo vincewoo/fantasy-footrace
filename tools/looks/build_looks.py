@@ -15,6 +15,10 @@ band inside it and hair from a patch at the crown of the silhouette above it. Ha
 style and beard come from the silhouette's shape and the colors around the face;
 see hair_style and beard_style.
 
+Fix what a photo can't show (locs under a headband, say) in
+src/espn/lookOverrides.json rather than here: the app applies those on top of
+this file at load, so they survive a rebuild and need no OpenCV to edit.
+
 Needs pillow, numpy and OpenCV (pip install pillow numpy "opencv-python-headless<5"; OpenCV 5 dropped the Haar cascades).
 """
 import colorsys
