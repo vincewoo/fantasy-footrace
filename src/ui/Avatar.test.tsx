@@ -51,6 +51,15 @@ function ev(kind: EventKind, pts: number): PlayEvent {
 const divs = (m: string) => (m.match(/<div/g) ?? []).length;
 const count = (m: string, needle: string) => m.split(needle).length - 1;
 
+it('paints a measured skin color over the palette tone', () => {
+  const palette = render({ player: HENRY, colors: BAL });
+  const measured = render({ player: { ...HENRY, sc: '#6a3c24' }, colors: BAL });
+
+  expect(count(palette, 'background:#5e3a22')).toBe(3);
+  expect(count(measured, 'background:#5e3a22')).toBe(0);
+  expect(count(measured, 'background:#6a3c24')).toBe(3);
+});
+
 it('renders the design\u2019s idle avatar', () => {
   const m = render();
 

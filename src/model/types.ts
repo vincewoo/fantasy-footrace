@@ -37,6 +37,7 @@ export interface Player {
   num: number | 'D';
   proj: number;
   skin: number;
+  sc?: string;
   hair: Hair;
   hc?: string;
   beard?: boolean;

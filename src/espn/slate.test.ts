@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import type { Slate } from '../model/types';
+import LOOKS from './looks.json';
 import { PRO_TEAMS, proTeamById } from './proTeams';
 import { buildSlate, LANE_ORDER, listTeams, posOf, SLOT_LABEL } from './slate';
 
@@ -296,13 +297,25 @@ describe('buildSlate for the recorded week 3', () => {
       new Map(
         s.lanes
           .flatMap(l => [l.me, l.opp])
-          .map(p => [p.id, [p.skin, p.hair, p.hc, p.beard]] as const),
+          .map(p => [p.id, [p.skin, p.sc, p.hair, p.hc, p.beard]] as const),
       );
 
     const before = looks(slate);
     const after = looks(reverse);
     expect([...before.keys()].sort()).toEqual([...after.keys()].sort());
     for (const [id, look] of before) expect(after.get(id)).toEqual(look);
+  });
+
+  it('colors skin and hair from the measured headshots', () => {
+    const measured = LOOKS as Record<string, string[]>;
+    const players = slate.lanes.flatMap(l => [l.me, l.opp]);
+    const henry = players.find(p => p.name === 'Derrick Henry')!;
+    expect(measured[henry.id]).toBeDefined();
+    expect(henry.sc).toBe(measured[henry.id][0]);
+    expect(henry.hc).toBe(measured[henry.id][1]);
+
+    for (const p of players.filter(p => p.pos !== 'DST')) expect(p.sc).toBe(measured[p.id][0]);
+    for (const p of players.filter(p => p.pos === 'DST')) expect(p.sc).toBeUndefined();
   });
 
   it('feeds snapshotAt before kickoff', () => {
@@ -340,6 +353,15 @@ describe('buildSlate corner cases', () => {
     });
     expect(mini.statusLabel(mini.lanes[3].me, 0)).toBe('KO SUN 1:00 PM');
     expect(mini.statusLabel(mini.lanes[3].me, 1)).toBe('FINAL');
+  });
+
+  it('falls back to a seeded look for a player with no headshot measurement', () => {
+    const slate = buildSlate(miniLeague, season, 1, { timeZone: TZ });
+    const players = slate.lanes.flatMap(l => [l.me, l.opp]).filter(p => p.id !== 'empty');
+    for (const p of players) {
+      expect((LOOKS as Record<string, unknown>)[p.id]).toBeUndefined();
+      expect(p.sc).toBeUndefined();
+    }
   });
 
   it('marks a player with no week game BYE', () => {

@@ -120,7 +120,7 @@ function figure(
   cel: Celebration | null = null,
 ): JSX.Element {
   const B = '2px solid ' + INK;
-  const skin = SK[p.skin];
+  const skin = p.sc ?? SK[p.skin];
   if (nap) a = null;
   if (nap || isOut) boost = false;
   const TD = a === 'td' || a === 'catchTD' || a === 'throwTD';

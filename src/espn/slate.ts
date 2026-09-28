@@ -1,5 +1,6 @@
 import type { Hair, Lane, Player, Pos, Slate, TeamColors } from '../model/types';
 import { mulberry } from '../sim/mock';
+import LOOKS from './looks.json';
 import { PRO_TEAMS, proTeamById } from './proTeams';
 import { buildTimeline, GAME_MS, timeLabel } from './timeline';
 
@@ -72,18 +73,28 @@ function ownerOf(members: Map<string, any>, team: any): string {
   return names.join(' & ');
 }
 
-function lookOf(id: number, pos: Pos): Pick<Player, 'skin' | 'hair' | 'hc' | 'beard'> {
+// Skin and hair colors sampled from ESPN headshots by tools/looks/build_looks.py.
+const MEASURED: Record<string, [string, string?]> = LOOKS as any;
+
+function lookOf(id: number, pos: Pos): Pick<Player, 'skin' | 'sc' | 'hair' | 'hc' | 'beard'> {
   const rng = mulberry(id);
   const skin = Math.floor(rng() * 5);
   const hair = rng();
   const hc = rng();
   const beard = rng();
-  return {
+  const look: Pick<Player, 'skin' | 'sc' | 'hair' | 'hc' | 'beard'> = {
     skin,
     hair: pos === 'DST' ? 'helmet' : HAIRS[Math.floor(hair * 5)],
     hc: HAIR_COLORS[Math.floor(hc * 5)],
     beard: beard < 0.35,
   };
+  const measured = pos === 'DST' ? undefined : MEASURED[String(id)];
+  if (measured) {
+    look.sc = measured[0];
+    // A measured player with no readable hair (headband, cap) gets dark hair, not a random blonde.
+    look.hc = measured[1] ?? HAIR_COLORS[0];
+  }
+  return look;
 }
 
 export function proTeamsOf(season: any): any[] {
