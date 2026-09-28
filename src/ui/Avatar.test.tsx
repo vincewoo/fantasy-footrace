@@ -11,12 +11,12 @@ const WINDOW: [number, number] = [0.005, 0.29];
 
 const ALLEN: Player = {
   id: 'me0', name: 'Josh Allen', last: 'Allen', pos: 'QB', team: 'BUF', num: 17,
-  proj: 22.4, skin: 0, hair: 'short', hc: '#5a3a22', beard: true, window: WINDOW,
+  proj: 22.4, skin: 0, hair: 'short', hc: '#5a3a22', beard: 'full', window: WINDOW,
 };
 
 const HENRY: Player = {
   id: 'opp2', name: 'Derrick Henry', last: 'Henry', pos: 'RB', team: 'BAL', num: 22,
-  proj: 15.8, skin: 4, hair: 'locs', hc: '#1d1411', beard: true, window: WINDOW,
+  proj: 15.8, skin: 4, hair: 'locs', hc: '#1d1411', beard: 'full', window: WINDOW,
 };
 
 const BRONCOS: Player = {
@@ -55,15 +55,68 @@ it('paints a measured skin color over the palette tone', () => {
   const palette = render({ player: HENRY, colors: BAL });
   const measured = render({ player: { ...HENRY, sc: '#6a3c24' }, colors: BAL });
 
-  expect(count(palette, 'background:#5e3a22')).toBe(3);
-  expect(count(measured, 'background:#5e3a22')).toBe(0);
-  expect(count(measured, 'background:#6a3c24')).toBe(3);
+  expect(palette).toContain('fill="#5e3a22"');
+  expect(measured).not.toContain('#5e3a22');
+  expect(measured).toContain('fill="#6a3c24"');
+});
+
+it('draws the figure as one svg with pivoted limbs and the jersey number', () => {
+  const m = render();
+
+  expect(count(m, '<svg')).toBe(1);
+  expect(m).toContain('transform-origin:8.6px 20px');
+  expect(m).toContain('transform-origin:25.4px 20px');
+  expect(m).toContain('transform-origin:13.4px 29px');
+  expect(m).toContain('transform-origin:20.6px 29px');
+  expect(m).toContain('>17</text>');
+  expect(m).not.toContain('rgba(255,110,110');
+});
+
+it('draws every hair style and beard in the hair color', () => {
+  const hairs: Player['hair'][] = ['bald', 'buzz', 'short', 'fade', 'curly', 'afro', 'locs', 'long', 'bun'];
+  const beards: NonNullable<Player['beard']>[] = ['none', 'stubble', 'mustache', 'goatee', 'full'];
+  for (const hair of hairs) {
+    for (const beard of beards) {
+      const m = render({ player: { ...ALLEN, hair, beard, hc: '#123456' } });
+      const inHair = hair !== 'bald' && hair !== 'buzz' && hair !== 'fade';
+      expect(m).toContain('<svg');
+      if (inHair || beard === 'mustache' || beard === 'goatee' || beard === 'full') expect(m).toContain('fill="#123456"');
+    }
+  }
+  expect(render({ player: { ...ALLEN, beard: 'none' } })).not.toContain('C3.6 2.2');
+  expect(render({ player: { ...ALLEN, beard: 'full' } })).toContain('C3.6 2.2');
+});
+
+it('gives each head its own clip paths', () => {
+  const both = renderToStaticMarkup(
+    <>
+      <CelebrationFigure player={ALLEN} colors={BUF} event={ev('recTD', 6)} size={1} />
+      <CelebrationFigure player={ALLEN} colors={BUF} event={ev('recTD', 6)} size={1} />
+    </>,
+  );
+  const ids = [...both.matchAll(/<clipPath id="([^"]+)"/g)].map(match => match[1]);
+
+  expect(ids.length).toBe(8);
+  expect(new Set(ids).size).toBe(8);
+});
+
+it('puts the defense in a team helmet with a facemask', () => {
+  const m = render({ player: BRONCOS, colors: DEN, pts: 2, scale: 16.4 });
+
+  expect(m).toContain('fill="#FB4F14"');
+  expect(m).toContain('stroke="#002244"');
+  expect(m).toContain('stroke="#a3aab1"');
+});
+
+it('wears a headband over the hair, but never over a helmet', () => {
+  expect(render({ player: { ...ALLEN, band: '#e5583f' } })).toContain('fill="#e5583f"');
+  expect(render({ player: { ...BRONCOS, band: '#e5583f' }, colors: DEN })).not.toContain('#e5583f');
 });
 
 it('renders the design\u2019s idle avatar', () => {
   const m = render();
 
-  expect(divs(m)).toBe(19);
+  expect(divs(m)).toBe(4);
   expect(m).toContain('left:calc(18px + (100% - 36px) * 0.1116)');
   expect(m).toContain('>ALLEN 5.0<');
 });
@@ -71,7 +124,7 @@ it('renders the design\u2019s idle avatar', () => {
 it('renders the design\u2019s touchdown pass', () => {
   const m = render({ event: ev('passTD', 4.4) });
 
-  expect(divs(m)).toBe(34);
+  expect(divs(m)).toBe(19);
   expect(count(m, 'confetti 1s')).toBe(10);
   expect(count(m, '--dx:')).toBe(10);
   expect(count(m, '--dy:')).toBe(10);
@@ -81,14 +134,14 @@ it('renders the design\u2019s touchdown pass', () => {
 it('renders the design\u2019s interception', () => {
   const m = render({ event: ev('int', -2) });
 
-  expect(divs(m)).toBe(24);
+  expect(divs(m)).toBe(9);
   expect(m).toContain('>INT<');
 });
 
 it('renders the design\u2019s injured opponent', () => {
   const m = render({ player: HENRY, colors: BAL, side: 'opp', lane: 2, pts: 3, scale: 31.6, out: true });
 
-  expect(divs(m)).toBe(23);
+  expect(divs(m)).toBe(5);
   expect(count(m, '>OUT<')).toBe(1);
   expect(m).toContain('>HENRY 3.0<');
   expect(m).toContain('left:calc(18px + (100% - 36px) * 0.0949)');
@@ -97,7 +150,7 @@ it('renders the design\u2019s injured opponent', () => {
 it('renders the design\u2019s napping player', () => {
   const m = render({ pts: 0, napping: true });
 
-  expect(divs(m)).toBe(21);
+  expect(divs(m)).toBe(6);
   expect(count(m, 'zzz 2.4s')).toBe(3);
   expect(m).not.toContain('ALLEN');
 });
@@ -105,7 +158,7 @@ it('renders the design\u2019s napping player', () => {
 it('renders the design\u2019s boosted player', () => {
   const m = render({ pts: 40 });
 
-  expect(divs(m)).toBe(26);
+  expect(divs(m)).toBe(11);
   expect(count(m, 'flame .')).toBe(2);
   expect(count(m, 'speedline')).toBe(3);
   expect(m).toContain('left:calc(18px + (100% - 36px) * 0.8929)');
@@ -114,7 +167,7 @@ it('renders the design\u2019s boosted player', () => {
 it('renders the design\u2019s defense tag', () => {
   const m = render({ player: BRONCOS, colors: DEN, pts: 2, scale: 16.4 });
 
-  expect(divs(m)).toBe(20);
+  expect(divs(m)).toBe(4);
   expect(m).toContain('>DEN D 2.0<');
 });
 
@@ -184,7 +237,7 @@ it('dances the Dirty Bird in the banner figure', () => {
 it('hides the face on the banner Twerk', () => {
   const m = bannerFigure(2);
 
-  expect(count(m, 'cel-face-away 1.8s steps(1) infinite')).toBe(4);
+  expect(count(m, 'cel-face-away 1.8s steps(1) infinite')).toBe(1);
   expect(m).toContain('cel-twerk-body 1.8s steps(18) infinite');
   expect(m).toContain('cel-twerk-leg-f');
   expect(m).toContain('cel-twerk-leg-b');

@@ -19,7 +19,9 @@ export type EventKind =
   | 'dtd'
   | 'injury';
 
-export type Hair = 'short' | 'fade' | 'buzz' | 'curly' | 'locs' | 'helmet';
+export type Hair = 'bald' | 'buzz' | 'short' | 'fade' | 'curly' | 'afro' | 'locs' | 'long' | 'bun' | 'helmet';
+
+export type Beard = 'none' | 'stubble' | 'mustache' | 'goatee' | 'full';
 
 export interface TeamColors {
   c1: string;
@@ -40,7 +42,8 @@ export interface Player {
   sc?: string;
   hair: Hair;
   hc?: string;
-  beard?: boolean;
+  beard?: Beard;
+  band?: string;
   window: [number, number];
 }
 

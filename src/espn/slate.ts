@@ -1,4 +1,4 @@
-import type { Hair, Lane, Player, Pos, Slate, TeamColors } from '../model/types';
+import type { Beard, Hair, Lane, Player, Pos, Slate, TeamColors } from '../model/types';
 import { mulberry } from '../sim/mock';
 import LOOKS from './looks.json';
 import { PRO_TEAMS, proTeamById } from './proTeams';
@@ -59,7 +59,9 @@ interface ProGame {
   awayProTeamId: number;
 }
 
-const HAIRS: Hair[] = ['short', 'fade', 'buzz', 'curly', 'locs'];
+// Until styles are classified from headshots, draw them at roughly how often they show up on NFL rosters.
+const HAIRS: Hair[] = ['short', 'short', 'short', 'fade', 'fade', 'fade', 'buzz', 'buzz', 'bald', 'curly', 'curly', 'locs', 'locs', 'afro', 'long', 'bun'];
+const BEARDS: Beard[] = ['none', 'none', 'none', 'none', 'none', 'none', 'none', 'stubble', 'stubble', 'stubble', 'stubble', 'mustache', 'goatee', 'goatee', 'goatee', 'full', 'full', 'full', 'full', 'full'];
 const HAIR_COLORS = ['#1d1411', '#5a3a22', '#7a5534', '#d4a650', '#2a1d15'];
 const PRO_BY_ABBREV = new Map(Object.values(PRO_TEAMS).map(t => [t.abbrev, t]));
 
@@ -84,9 +86,9 @@ function lookOf(id: number, pos: Pos): Pick<Player, 'skin' | 'sc' | 'hair' | 'hc
   const beard = rng();
   const look: Pick<Player, 'skin' | 'sc' | 'hair' | 'hc' | 'beard'> = {
     skin,
-    hair: pos === 'DST' ? 'helmet' : HAIRS[Math.floor(hair * 5)],
+    hair: pos === 'DST' ? 'helmet' : HAIRS[Math.floor(hair * HAIRS.length)],
     hc: HAIR_COLORS[Math.floor(hc * 5)],
-    beard: beard < 0.35,
+    beard: pos === 'DST' ? 'none' : BEARDS[Math.floor(beard * BEARDS.length)],
   };
   const measured = pos === 'DST' ? undefined : MEASURED[String(id)];
   if (measured) {
