@@ -16,3 +16,4 @@ dist/
 # unpacked under reference/ for reading, never checked in
 Fantasy Football Animation Companion-handoff.zip
 reference/fantasy-football-animation-companion/
+__pycache__/
