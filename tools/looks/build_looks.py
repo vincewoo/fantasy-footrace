@@ -111,17 +111,22 @@ def measure(path):
             hair = c
         else:
             band = c
-    return skin, hair, hair_style(arr, mask, (x, y, fw, fh), band is not None), beard_style(arr, mask, (x, y, fw, fh)), band
+    style, hanging = hair_style(arr, mask, (x, y, fw, fh), band is not None)
+    # Long hair and locs show their real color hanging beside the face; the crown can be a dark part.
+    if hanging is not None:
+        hair = hanging
+    return skin, hair, style, beard_style(arr, mask, (x, y, fw, fh)), band
 
 
 LUM = np.array([.2126, .7152, .0722])
 
 
 def hair_style(arr, mask, box, banded=False):
-    """One of the avatar's hair styles, from the silhouette and colors around the face box.
+    """One of the avatar's hair styles, from the silhouette and colors around the face box,
+    and for hair hanging beside the face, its color.
 
     Checked against 72 hand-labelled headshots: right or a look-alike neighbour
-    (short/fade/buzz, curly/afro) for about 9 in 10. Tied-back locs read as short.
+    (short/fade/buzz, curly/afro) for 63. Tied-back locs read as a buzz.
     """
     x, y, fw, fh = box
     top = np.where(mask[:, int(x + .3 * fw):int(x + .7 * fw)].any(1))[0][0]
@@ -132,30 +137,41 @@ def hair_style(arr, mask, box, banded=False):
     hair_l = np.percentile(crown @ LUM, 30) if len(crown) else skin_l
     widths = mask.sum(1)
 
-    # Locs and long hair hang beside the jaw, outside the face box, darker than the skin.
-    side = np.concatenate([pixels(arr, mask, x - .3 * fw, y + .6 * fh, x + .02 * fw, y + 1.2 * fh),
-                           pixels(arr, mask, x + .98 * fw, y + .6 * fh, x + 1.3 * fw, y + 1.2 * fh)])
-    side_hair = ((side @ LUM) < (skin_l + hair_l) / 2).sum() / (.32 * fw * .6 * fh * 2)
-    if side_hair > .33:
-        return 'long' if hair_l > 40 else 'locs'
+    # Locs and long hair hang beside the jaw, outside the face box: darker than the
+    # skin, or for light and red hair, a clearly different color from it.
+    beside = [(x - .18 * fw, y + .7 * fh, x + .04 * fw, y + 1.2 * fh), (x + .96 * fw, y + .7 * fh, x + 1.18 * fw, y + 1.2 * fh)]
+    side = np.concatenate([pixels(arr, mask, *b) for b in beside])
+    skin_rgb = np.median(cheeks, 0) if len(cheeks) else np.full(3, 128.0)
+    side_l = side @ LUM
+    is_hair = (side_l < (skin_l + hair_l) / 2) | ((np.linalg.norm(side - skin_rgb, axis=1) > 45) & (side_l < .95 * skin_l))
+    side_hair = is_hair.sum() / (.22 * fw * .5 * fh * 2)
+    if side_hair > .45:
+        # Judge by the hanging hair itself: near-black ropes are locs, brown or lighter is long hair.
+        return ('long' if np.median(side_l[is_hair]) > 60 else 'locs'), np.median(side[is_hair], 0)
     # A crown as bright as the cheeks is scalp, unless a headband is what's up there.
     crown_rel = 0 if banded else np.median(crown @ LUM) / skin_l if len(crown) else 0
     if crown_rel > .55:
-        return 'bald'
+        return 'bald', None
     # Volume: how far the head rises above the face box, and how wide it gets up there.
     above = (y - top) / fh
     wide = widths[top:int(y)].max() / fw if y > top else 0
     if above >= .33 and wide >= 1.05:
-        return 'afro' if wide >= 1.3 and above >= .38 else 'curly'
+        return ('afro' if wide >= 1.3 and above >= .38 else 'curly'), None
     # Tight curls make a busy crown even without much volume.
     g = arr[..., :3] @ LUM
     sub = g[top + 1:int(top + .15 * fh), int(x + .3 * fw):int(x + .7 * fw)]
     texture = (np.abs(np.diff(sub, axis=1)).mean() + np.abs(np.diff(sub, axis=0)).mean()) / max(skin_l, 1) * 100 if sub.size > 4 else 0
     if texture > 20:
-        return 'curly'
+        return 'curly', None
     if crown_rel > .3:
-        return 'buzz'
-    return 'short' if hair_l > 25 else 'fade'
+        return 'buzz', None
+    if hair_l > 40:
+        return 'short', None
+    # A buzz barely rises off the head. With some height on top, brown hair is a short
+    # cut and near-black hair a fade.
+    if above < .24:
+        return 'buzz', None
+    return ('short' if hair_l > 25 else 'fade'), None
 
 
 def beard_style(arr, mask, box):
@@ -163,7 +179,8 @@ def beard_style(arr, mask, box):
 
     Beard hair is much less saturated than skin, which holds up under shadow where
     brightness alone doesn't. Goatees and mustaches are too small to call at this
-    size and come out as stubble or none.
+    size and come out as stubble or none. Checked against the same 72 headshots:
+    right or a look-alike neighbour for 61.
     """
     x, y, fw, fh = box
     cheeks = np.concatenate([pixels(arr, mask, x + .2 * fw, y + .45 * fh, x + .34 * fw, y + .6 * fh),
@@ -179,11 +196,20 @@ def beard_style(arr, mask, box):
             return 0
         return (((chroma(p) < .55 * cheek_c) & (p @ LUM < .9 * cheek_l)) | (p @ LUM < .35 * cheek_l)).mean()
 
+    def red(p):
+        # Red and auburn beards go the other way: darker and more saturated than the skin.
+        # Only on the jaw, where lips can't pass for one, and only on light skin: on darker
+        # skin, warm shadow along the jaw is just as saturated.
+        if not len(p) or cheek_l < 160:
+            return 0
+        return ((chroma(p) > 1.7 * cheek_c) & (p @ LUM < .65 * cheek_l)).mean()
+
     chin = hairy(pixels(arr, mask, x + .36 * fw, y + .9 * fh, x + .64 * fw, y + 1.08 * fh))
-    jaw = hairy(np.concatenate([pixels(arr, mask, x + .1 * fw, y + .68 * fh, x + .26 * fw, y + .9 * fh),
-                                pixels(arr, mask, x + .74 * fw, y + .68 * fh, x + .9 * fw, y + .9 * fh)]))
+    jaw_px = np.concatenate([pixels(arr, mask, x + .1 * fw, y + .68 * fh, x + .26 * fw, y + .9 * fh),
+                             pixels(arr, mask, x + .74 * fw, y + .68 * fh, x + .9 * fw, y + .9 * fh)])
+    jaw = max(hairy(jaw_px), red(jaw_px))
     score = chin + jaw
-    return 'full' if score >= .6 else 'stubble' if score >= .2 else 'none'
+    return 'full' if score >= .6 else 'stubble' if score >= .15 else 'none'
 
 
 def hexof(c):
