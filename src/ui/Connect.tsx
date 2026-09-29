@@ -84,6 +84,7 @@ export function TeamPicker(props: {
   teams: LeagueTeam[];
   leagueName: string;
   onPick(id: number): void;
+  onMnf?(): void;
 }): JSX.Element {
   return (
     <Card>
@@ -96,6 +97,9 @@ export function TeamPicker(props: {
           </button>
         ))}
       </div>
+      {props.onMnf ? (
+        <button onClick={props.onMnf} style={{ ...button(false), alignSelf: 'flex-start' }}>JUST WATCH MONDAY NIGHT</button>
+      ) : null}
     </Card>
   );
 }
@@ -149,11 +153,13 @@ export function HeaderControls(props: {
   week: number;
   currentWeek: number;
   onWeek(week: number): void;
-  onChangeTeam(): void;
+  onChangeTeam?(): void;
+  mnf?: boolean;
+  onMnf?(on: boolean): void;
 }): JSX.Element {
   const weeks = Array.from({ length: props.currentWeek }, (_, i) => props.currentWeek - i);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <select
         value={props.week}
         onChange={event => props.onWeek(Number(event.target.value))}
@@ -166,7 +172,10 @@ export function HeaderControls(props: {
           </option>
         ))}
       </select>
-      <button onClick={props.onChangeTeam} style={button(false)}>CHANGE TEAM</button>
+      {props.onMnf ? (
+        <button onClick={() => props.onMnf?.(!props.mnf)} style={button(false, { whiteSpace: 'nowrap' })}>{props.mnf ? 'MY MATCHUP' : 'MNF'}</button>
+      ) : null}
+      {props.onChangeTeam ? <button onClick={props.onChangeTeam} style={button(false, { whiteSpace: 'nowrap' })}>CHANGE TEAM</button> : null}
     </div>
   );
 }

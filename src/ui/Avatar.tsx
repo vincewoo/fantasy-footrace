@@ -33,6 +33,10 @@ export function celebrationOf(ev: PlayEvent, nth?: number): Celebration {
 
 const SK = ['#f3cfae', '#dfa97f', '#b67b52', '#8a5634', '#5e3a22'];
 
+export function skinOf(p: Player): string {
+  return p.sc ?? SK[p.skin];
+}
+
 export interface AvatarProps {
   player: Player;
   colors: TeamColors;
@@ -112,7 +116,7 @@ function figure(
   cel: Celebration | null = null,
 ): JSX.Element {
   const B = '2px solid ' + INK;
-  const skin = p.sc ?? SK[p.skin];
+  const skin = skinOf(p);
   if (nap) a = null;
   if (nap || isOut) boost = false;
   const TD = a === 'td' || a === 'catchTD' || a === 'throwTD';
