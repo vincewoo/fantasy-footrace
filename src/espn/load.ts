@@ -8,9 +8,10 @@ import {
   type DstHistory,
   type PollState,
 } from './live';
-import { buildSlate, listTeams, posOf, proTeamsOf, type LeagueTeam } from './slate';
+import { buildSlate, listTeams, posOf, type LeagueTeam } from './slate';
 import { fetchSummary, scoresAgainst, yardsAgainst } from './summary';
 import { buildTimeline } from './timeline';
+import { fetchMatchups, ownerLabel, scheduleOf, weekKickoffs, type ScheduleEntry } from './week';
 
 export interface LeagueInfo {
   week: number;
@@ -39,32 +40,6 @@ export interface LiveSlate {
   matchupId: number;
   myTeamId: number;
   oppTeamId: number;
-}
-
-interface ScheduleEntry {
-  id: number;
-  home: { teamId: number };
-  away: { teamId: number };
-}
-
-function weekKickoffs(season: any, week: number): number[] {
-  const dates: number[] = [];
-  for (const team of proTeamsOf(season)) {
-    for (const game of team.proGamesByScoringPeriod?.[String(week)] ?? []) dates.push(game.date);
-  }
-  return dates;
-}
-
-function fetchMatchup(week: number, fetchImpl?: typeof fetch): Promise<unknown> {
-  return fetchLeague(['mMatchupScore', 'mScoreboard', 'mLiveScoring'], {
-    scoringPeriodId: week,
-    filter: { schedule: { filterMatchupPeriodIds: { value: [week] } } },
-    fetchImpl,
-  });
-}
-
-function scheduleOf(matchup: unknown): ScheduleEntry[] {
-  return ((matchup as { schedule?: ScheduleEntry[] } | null)?.schedule ?? []) as ScheduleEntry[];
 }
 
 function dstStarters(entry: ScheduleEntry, cur: PollState): { id: string; eventId: string; proTeamId: number }[] {
@@ -125,7 +100,7 @@ export async function loadLiveSlate(
 ): Promise<LiveSlate> {
   const week = opts.week ?? info.week;
   const [matchup, season] = await Promise.all([
-    fetchMatchup(week, opts.fetchImpl),
+    fetchMatchups(week, opts.fetchImpl),
     fetchSeason(['proTeamSchedules_wl'], { fetchImpl: opts.fetchImpl }),
   ]);
 
@@ -135,12 +110,13 @@ export async function loadLiveSlate(
   );
   if (!entry) throw new Error('no matchup for team ' + myTeamId);
 
-  const slate = buildSlate(
+  const base = buildSlate(
     { ...info.raw, scoringPeriodId: week, schedule },
     season,
     myTeamId,
     { timeZone: opts.timeZone },
   );
+  const slate = { ...base, me: { ...base.me, owner: ownerLabel(info, myTeamId) } };
 
   const timeline = buildTimeline(weekKickoffs(season, week), opts.timeZone);
   const cur = readPoll(schedule, myTeamId, week);
@@ -171,7 +147,7 @@ export async function pollLive(
   live: LiveSlate,
   opts: { fetchImpl?: typeof fetch; now?: number } = {},
 ): Promise<LiveSlate> {
-  const schedule = scheduleOf(await fetchMatchup(live.week, opts.fetchImpl));
+  const schedule = scheduleOf(await fetchMatchups(live.week, opts.fetchImpl));
 
   const cur = readPoll(schedule, live.myTeamId, live.week);
   const maxId = live.slate.events.reduce((max, e) => Math.max(max, e.id), 0);

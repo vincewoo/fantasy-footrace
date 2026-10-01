@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { EspnError, saveKey } from '../espn/client';
-import type { LeagueTeam } from '../espn/slate';
+import { viewHref, type View } from './route';
 
 const INK = '#1c1a22';
 const CREAM = '#fffaf0';
@@ -29,8 +29,6 @@ const CARD: CSSProperties = {
 };
 
 const TITLE: CSSProperties = { fontFamily: LILITA, fontSize: 26, lineHeight: 1 };
-
-const SUBTITLE: CSSProperties = { fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566' };
 
 const PILL: CSSProperties = {
   fontFamily: LILITA,
@@ -80,30 +78,6 @@ function Card({ children }: { children: ReactNode }): JSX.Element {
   );
 }
 
-export function TeamPicker(props: {
-  teams: LeagueTeam[];
-  leagueName: string;
-  onPick(id: number): void;
-  onMnf?(): void;
-}): JSX.Element {
-  return (
-    <Card>
-      <div style={TITLE}>Pick your team</div>
-      <div style={SUBTITLE}>{props.leagueName}</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {props.teams.map(team => (
-          <button key={team.id} onClick={() => props.onPick(team.id)} style={PILL}>
-            {team.owner ? `${team.name} · ${team.owner}` : team.name}
-          </button>
-        ))}
-      </div>
-      {props.onMnf ? (
-        <button onClick={props.onMnf} style={{ ...button(false), alignSelf: 'flex-start' }}>JUST WATCH MONDAY NIGHT</button>
-      ) : null}
-    </Card>
-  );
-}
-
 function problem(error: unknown): string {
   const espn = error instanceof EspnError ? error : null;
   if (espn?.kind === 'private') {
@@ -149,13 +123,23 @@ export function ConnectError(props: { error: unknown; onRetry(): void }): JSX.El
   );
 }
 
+function NavLink(props: { view: View; on: boolean; children: ReactNode }): JSX.Element {
+  return (
+    <a
+      href={viewHref(props.view)}
+      aria-current={props.on ? 'page' : undefined}
+      style={button(props.on, { whiteSpace: 'nowrap', textDecoration: 'none', display: 'inline-block' })}
+    >
+      {props.children}
+    </a>
+  );
+}
+
 export function HeaderControls(props: {
   week: number;
   currentWeek: number;
   onWeek(week: number): void;
-  onChangeTeam?(): void;
-  mnf?: boolean;
-  onMnf?(on: boolean): void;
+  view: View['kind'];
 }): JSX.Element {
   const weeks = Array.from({ length: props.currentWeek }, (_, i) => props.currentWeek - i);
   return (
@@ -172,10 +156,8 @@ export function HeaderControls(props: {
           </option>
         ))}
       </select>
-      {props.onMnf ? (
-        <button onClick={() => props.onMnf?.(!props.mnf)} style={button(false, { whiteSpace: 'nowrap' })}>{props.mnf ? 'MY MATCHUP' : 'MNF'}</button>
-      ) : null}
-      {props.onChangeTeam ? <button onClick={props.onChangeTeam} style={button(false, { whiteSpace: 'nowrap' })}>CHANGE TEAM</button> : null}
+      <NavLink view={{ kind: 'scoreboard' }} on={props.view === 'scoreboard'}>SCOREBOARD</NavLink>
+      <NavLink view={{ kind: 'mnf' }} on={props.view === 'mnf'}>MNF</NavLink>
     </div>
   );
 }

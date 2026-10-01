@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { espnBase, savedKey } from './espn/client';
 import { loadLeagueInfo, loadLiveSlate, pollLive, type LeagueInfo, type LiveSlate } from './espn/load';
-import { loadMnfBoard, pollMnf, type MnfBoard } from './espn/mnf';
+import { mnfOf } from './espn/mnf';
 import { fetchScoreboard, statusesByTeam, withGameStatus, type GameStatus } from './espn/scoreboard';
 import { timeLabel } from './espn/timeline';
-import { connectTalk, talkUrl, type TalkConnection } from './talk/socket';
-import { ConnectError, HeaderControls, TeamPicker } from './ui/Connect';
+import { loadWeek, pollWeek, type WeekBoard } from './espn/week';
+import type { Slate } from './model/types';
+import { ConnectError, HeaderControls } from './ui/Connect';
 import { MatchupPage } from './ui/MatchupPage';
 import { MnfPage } from './ui/MnfPage';
+import { parseView, type View } from './ui/route';
+import { ScoreboardPage } from './ui/ScoreboardPage';
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -15,29 +17,17 @@ const POLL_MS = 15000;
 
 const WEEK_CHECK_MS = 10 * 60 * 1000;
 
-function readTeam(): number | null {
-  try {
-    const saved = localStorage.getItem('ff_team');
-    const id = saved === null ? Number.NaN : Number(saved);
-    return Number.isFinite(id) ? id : null;
-  } catch {
-    return null;
-  }
+function readView(): View {
+  return typeof location === 'undefined' ? { kind: 'scoreboard' } : parseView(location.hash);
 }
 
-const MNF_HASH = '#mnf';
-
-function readMnf(): boolean {
-  return typeof location !== 'undefined' && location.hash === MNF_HASH;
-}
-
-function store(key: string, value: string | null): void {
-  try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
-  } catch {
-    // storage stays optional: private mode or a blocked origin both throw
-  }
+function inGame(slate: Slate, tNow: number): boolean {
+  return slate.lanes.some(lane =>
+    (['me', 'opp'] as const).some(side => {
+      const p = lane[side];
+      return p.id !== 'empty' && p.window[0] < tNow && tNow < p.window[1];
+    }),
+  );
 }
 
 function Loading(): JSX.Element {
@@ -51,28 +41,22 @@ function Loading(): JSX.Element {
 export default function App() {
   const [attempt, setAttempt] = useState(0);
   const [info, setInfo] = useState<LeagueInfo | null>(null);
-  const [team, setTeam] = useState<number | null>(readTeam);
+  const [view, setView] = useState<View>(readView);
   const [replayWeek, setReplayWeek] = useState<number | null>(null);
   const [live, setLive] = useState<LiveSlate | null>(null);
+  const [board, setBoard] = useState<WeekBoard | null>(null);
   const [statuses, setStatuses] = useState<Record<string, GameStatus>>({});
   const [error, setError] = useState<unknown>(null);
-  const [room, setRoom] = useState(false);
-  const [connected, setConnected] = useState(false);
-  const [oppWatching, setOppWatching] = useState(false);
-  const [remoteTaunt, setRemoteTaunt] = useState<{ id: number; text: string } | null>(null);
-  const [mnf, setMnf] = useState(readMnf);
-  const [board, setBoard] = useState<MnfBoard | null>(null);
-  const [mnfStatuses, setMnfStatuses] = useState<Record<string, GameStatus>>({});
 
   const liveRef = useRef<LiveSlate | null>(null);
+  const boardRef = useRef<WeekBoard | null>(null);
   const pollingRef = useRef(false);
-  const talkRef = useRef<TalkConnection | null>(null);
-  const tauntRef = useRef(0);
-  const boardRef = useRef<MnfBoard | null>(null);
-  const mnfPollingRef = useRef(false);
   const infoRef = useRef<LeagueInfo | null>(null);
   infoRef.current = info;
-  const picked = info && team !== null && info.teams.some(t => t.id === team) ? team : null;
+  const team = view.kind === 'matchup' && info?.teams.some(t => t.id === view.team) ? view.team : null;
+  // The scoreboard and Monday night read the same week board, so moving between them costs no fetch.
+  // A link to a team the league doesn't have lands on the scoreboard.
+  const onBoard = team === null;
   const week = info ? (replayWeek !== null && replayWeek < info.week ? replayWeek : info.week) : null;
   const replay = info !== null && week !== info.week;
 
@@ -81,7 +65,9 @@ export default function App() {
     setError(null);
     setInfo(null);
     setLive(null);
+    setBoard(null);
     liveRef.current = null;
+    boardRef.current = null;
     loadLeagueInfo()
       .then(next => {
         if (!ignore) setInfo(next);
@@ -121,127 +107,57 @@ export default function App() {
   }, [info]);
 
   useEffect(() => {
+    const onNavigate = () => {
+      setView(readView());
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('hashchange', onNavigate);
+    return () => window.removeEventListener('hashchange', onNavigate);
+  }, []);
+
+  // One team's matchup, read in full with DST drive history, while a matchup page is open.
+  useEffect(() => {
     const info = infoRef.current;
-    if (!info || picked === null || week === null || mnf) return;
+    if (!info || team === null || week === null) return;
     let ignore = false;
     setError(null);
     setLive(null);
     liveRef.current = null;
     pollingRef.current = false;
     setStatuses({});
-    setRoom(false);
-    setConnected(false);
-    setOppWatching(false);
-    setRemoteTaunt(null);
-    loadLiveSlate(info, picked, { timeZone: TZ, week })
+    loadLiveSlate(info, team, { timeZone: TZ, week })
       .then(next => {
         if (ignore) return;
         liveRef.current = next;
         setLive(next);
         if (replay) return;
-
         fetchScoreboard(next.season, next.week)
-          .then(board => {
-            if (!ignore) setStatuses(statusesByTeam(board));
+          .then(scoreboard => {
+            if (!ignore) setStatuses(statusesByTeam(scoreboard));
           })
           .catch(() => {
             // the timeline labels stand in until a scoreboard read succeeds
           });
-
-        const url = talkUrl(espnBase(), {
-          season: next.season,
-          week: next.week,
-          matchupId: next.matchupId,
-          team: next.myTeamId,
-        });
-        const key = savedKey();
-        if (url === null || key === null) return;
-
-        talkRef.current = connectTalk(url, key, {
-          onTaunt: (teamId, text) => {
-            if (teamId !== next.oppTeamId) return;
-            tauntRef.current += 1;
-            setRemoteTaunt({ id: tauntRef.current, text });
-          },
-          onPresence: teams => setOppWatching(teams.includes(next.oppTeamId)),
-          onStatus: setConnected,
-        });
-        setRoom(true);
       })
       .catch((caught: unknown) => {
         if (!ignore) setError(caught);
       });
     return () => {
       ignore = true;
-      talkRef.current?.close();
-      talkRef.current = null;
     };
-  }, [week, picked, replay, mnf]);
+  }, [week, team, replay]);
 
-  useEffect(() => {
-    if (!info || picked === null || replay || mnf) return;
-    let ignore = false;
-
-    const pollOne = () => {
-      const current = liveRef.current;
-      if (!current || pollingRef.current) return;
-
-      const tNow = current.toT(Date.now());
-      const inGame = current.slate.lanes.some(lane =>
-        (['me', 'opp'] as const).some(side => {
-          const p = lane[side];
-          return p.id !== 'empty' && p.window[0] < tNow && tNow < p.window[1];
-        }),
-      );
-      if (!inGame) return;
-
-      pollingRef.current = true;
-      const matchup = pollLive(info, current)
-        .then(next => {
-          if (ignore) return;
-          liveRef.current = next;
-          setLive(next);
-        })
-        .catch(() => {
-          // a failed poll keeps the current slate and is retried on the next tick
-        });
-
-      const board = fetchScoreboard(current.season, current.week)
-        .then(scoreboard => {
-          if (!ignore) setStatuses(statusesByTeam(scoreboard));
-        })
-        .catch(() => {
-          // a failed scoreboard read keeps the previous statuses
-        });
-
-      Promise.all([matchup, board]).finally(() => {
-        pollingRef.current = false;
-      });
-    };
-
-    const timer = setInterval(pollOne, POLL_MS);
-    return () => {
-      ignore = true;
-      clearInterval(timer);
-    };
-  }, [info, picked, replay, mnf]);
-
-  useEffect(() => {
-    const onHash = () => setMnf(readMnf());
-    window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
-  }, []);
-
+  // Every matchup of the week, while the scoreboard or Monday night is open.
   useEffect(() => {
     const info = infoRef.current;
-    if (!info || week === null || !mnf) return;
+    if (!info || week === null || !onBoard) return;
     let ignore = false;
     setError(null);
     setBoard(null);
     boardRef.current = null;
-    mnfPollingRef.current = false;
-    setMnfStatuses({});
-    loadMnfBoard(info, { timeZone: TZ, week, myTeamId: picked })
+    pollingRef.current = false;
+    setStatuses({});
+    loadWeek(info, { timeZone: TZ, week })
       .then(next => {
         if (ignore) return;
         boardRef.current = next;
@@ -249,7 +165,7 @@ export default function App() {
         if (replay) return;
         fetchScoreboard(next.season, next.week)
           .then(scoreboard => {
-            if (!ignore) setMnfStatuses(statusesByTeam(scoreboard));
+            if (!ignore) setStatuses(statusesByTeam(scoreboard));
           })
           .catch(() => {
             // kickoff times stand in until a scoreboard read succeeds
@@ -261,37 +177,55 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [week, picked, replay, mnf]);
+  }, [week, onBoard, replay]);
 
+  // Live polls only run while someone on the page is actually playing.
   useEffect(() => {
-    if (!info || !mnf || replay) return;
+    if (!info || replay) return;
     let ignore = false;
 
     const pollOne = () => {
-      const current = boardRef.current;
-      if (!current || mnfPollingRef.current || current.matchups.length === 0) return;
-      const tNow = current.toT(Date.now());
-      if (tNow < current.window[0] || tNow >= current.window[1]) return;
+      if (pollingRef.current) return;
+      const now = Date.now();
+      let read: Promise<unknown>;
+      let season: number;
+      let weekNo: number;
 
-      mnfPollingRef.current = true;
-      const matchups = pollMnf(info, current, { timeZone: TZ, myTeamId: picked })
-        .then(next => {
+      if (onBoard) {
+        const current = boardRef.current;
+        if (!current || !current.matchups.some(m => inGame(m.slate, current.toT(now)))) return;
+        season = current.season;
+        weekNo = current.week;
+        read = pollWeek(info, current, { timeZone: TZ }).then(next => {
           if (ignore) return;
           boardRef.current = next;
           setBoard(next);
-        })
-        .catch(() => {
-          // a failed poll keeps the current board and is retried on the next tick
         });
-      const scoreboard = fetchScoreboard(current.season, current.week)
+      } else {
+        const current = liveRef.current;
+        if (!current || !inGame(current.slate, current.toT(now))) return;
+        season = current.season;
+        weekNo = current.week;
+        read = pollLive(info, current).then(next => {
+          if (ignore) return;
+          liveRef.current = next;
+          setLive(next);
+        });
+      }
+
+      pollingRef.current = true;
+      const matchups = read.catch(() => {
+        // a failed poll keeps the current scores and is retried on the next tick
+      });
+      const scoreboard = fetchScoreboard(season, weekNo)
         .then(next => {
-          if (!ignore) setMnfStatuses(statusesByTeam(next));
+          if (!ignore) setStatuses(statusesByTeam(next));
         })
         .catch(() => {
           // a failed scoreboard read keeps the previous statuses
         });
       Promise.all([matchups, scoreboard]).finally(() => {
-        mnfPollingRef.current = false;
+        pollingRef.current = false;
       });
     };
 
@@ -300,7 +234,7 @@ export default function App() {
       ignore = true;
       clearInterval(timer);
     };
-  }, [info, picked, replay, mnf]);
+  }, [info, team, onBoard, replay]);
 
   const liveNow = useCallback(() => (liveRef.current ? liveRef.current.toT(Date.now()) : 0), []);
   const liveClock = useCallback(() => timeLabel(Date.now(), TZ, true), []);
@@ -308,28 +242,7 @@ export default function App() {
     () => (live ? withGameStatus(live.slate, statuses, live.toT(Date.now())) : null),
     [live?.slate, statuses],
   );
-  const sendTaunt = useCallback((text: string) => talkRef.current?.send(text) ?? false, []);
-  const talk = room ? { send: sendTaunt, connected, oppWatching } : null;
-
-  const pickTeam = (id: number) => {
-    store('ff_team', String(id));
-    setTeam(id);
-  };
-
-  const showMnf = (on: boolean) => {
-    try {
-      history.replaceState(null, '', on ? MNF_HASH : location.pathname + location.search);
-    } catch {
-      // the view still switches when the URL can't be rewritten
-    }
-    setMnf(on);
-  };
-
-  const changeTeam = () => {
-    store('ff_team', null);
-    setTeam(null);
-    setReplayWeek(null);
-  };
+  const mnf = useMemo(() => (board ? mnfOf(board) : null), [board]);
 
   if (error) {
     return (
@@ -343,73 +256,71 @@ export default function App() {
     );
   }
 
-  if (!info) return <Loading />;
-
-  if (mnf && week !== null) {
-    if (!board || board.week !== week) return <Loading />;
-    return (
-      <MnfPage
-        key={`mnf-${week}`}
-        board={board}
-        statuses={mnfStatuses}
-        liveT={board.toT(Date.now())}
-        timeZone={TZ}
-        subtitle={`WEEK ${week}${replay ? ' REPLAY' : ''} · ${info.name.toUpperCase()}`}
-        headerExtra={
-          <HeaderControls
-            week={week}
-            currentWeek={info.week}
-            onWeek={next => setReplayWeek(next === info.week ? null : next)}
-            onChangeTeam={picked === null ? undefined : changeTeam}
-            mnf
-            onMnf={showMnf}
-          />
-        }
-        replay={replay}
-      />
-    );
-  }
-
-  if (picked === null) {
-    return <TeamPicker teams={info.teams} leagueName={info.name} onPick={pickTeam} onMnf={() => showMnf(true)} />;
-  }
-
-  if (!live || live.week !== week || gameSlate === null) return <Loading />;
+  if (!info || week === null) return <Loading />;
 
   const header = (
     <HeaderControls
       week={week}
       currentWeek={info.week}
       onWeek={next => setReplayWeek(next === info.week ? null : next)}
-      onChangeTeam={changeTeam}
-      onMnf={showMnf}
+      view={onBoard && view.kind === 'matchup' ? 'scoreboard' : view.kind}
     />
   );
+  const subtitle = `WEEK ${week}${replay ? ' REPLAY' : ''} · ${info.name.toUpperCase()}`;
+
+  if (view.kind === 'mnf') {
+    if (!board || !mnf || board.week !== week) return <Loading />;
+    return (
+      <MnfPage
+        key={`mnf-${week}`}
+        board={mnf}
+        statuses={statuses}
+        liveT={board.toT(Date.now())}
+        timeZone={TZ}
+        subtitle={subtitle}
+        headerExtra={header}
+        replay={replay}
+      />
+    );
+  }
+
+  if (team === null) {
+    if (!board || board.week !== week) return <Loading />;
+    return (
+      <ScoreboardPage
+        key={`scoreboard-${week}`}
+        board={board}
+        liveT={board.toT(Date.now())}
+        subtitle={subtitle}
+        headerExtra={header}
+        replay={replay}
+      />
+    );
+  }
+
+  if (!live || live.week !== week || live.myTeamId !== team || gameSlate === null) return <Loading />;
 
   if (replay) {
     return (
       <MatchupPage
-        key={`replay-${picked}-${week}`}
+        key={`replay-${team}-${week}`}
         slate={live.slate}
-        subtitle={`WEEK ${week} REPLAY · ${info.name.toUpperCase()}`}
+        subtitle={subtitle}
         headerExtra={header}
-        storageKey={`ff_replay_v1_${picked}_${week}`}
-        replay
+        storageKey={`ff_replay_v1_${team}_${week}`}
       />
     );
   }
 
   return (
     <MatchupPage
-      key={`live-${picked}-${week}`}
+      key={`live-${team}-${week}`}
       slate={gameSlate}
-      subtitle={`WEEK ${info.week} · ${info.name.toUpperCase()}`}
+      subtitle={subtitle}
       headerExtra={header}
       liveNow={liveNow}
       liveClock={liveClock}
-      storageKey={`ff_live_v1_${week}`}
-      talk={talk}
-      remoteTaunt={remoteTaunt}
+      storageKey={`ff_live_v1_${team}_${week}`}
     />
   );
 }

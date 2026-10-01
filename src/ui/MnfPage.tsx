@@ -7,6 +7,7 @@ import { gameLabel, withGameStatus, type GameStatus } from '../espn/scoreboard';
 import { timeLabel } from '../espn/timeline';
 import { skinOf } from './Avatar';
 import { DEFAULT_HAIR, Head } from './Head';
+import { matchupHref } from './route';
 
 const INK = '#1c1a22';
 const CREAM = '#fffaf0';
@@ -152,7 +153,12 @@ function MatchupCard(props: { matchup: MnfMatchup; slate: Slate; snapshot: Snaps
   const rows = [...matchup.players.me, ...matchup.players.opp];
 
   return (
-    <div data-mnf-matchup={matchup.id} style={{ background: CREAM, border: '3px solid ' + INK, borderRadius: 14, boxShadow: matchup.mine ? '0 5px 0 ' + INK + ', 0 0 0 3px #ffd23f' : '0 5px 0 ' + INK, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+    <a
+      href={matchupHref(matchup.teamIds.me)}
+      data-mnf-matchup={matchup.id}
+      aria-label={`${slate.me.name} vs ${slate.opp.name}: open the full matchup`}
+      style={{ color: INK, textDecoration: 'none', background: CREAM, border: '3px solid ' + INK, borderRadius: 14, boxShadow: '0 5px 0 ' + INK, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}
+    >
       <div style={{ background: '#d8d0bb', borderBottom: '3px solid ' + INK, padding: 7 }}>
         <div style={{ ...LCD_PANEL, padding: '8px 10px', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto minmax(0,1fr)', gap: 8, alignItems: 'center' }}>
           <TeamScore slate={slate} side="me" total={totals.me} projected={projected.me} left={left('me')} count={matchup.players.me.length} />
@@ -170,8 +176,8 @@ function MatchupCard(props: { matchup: MnfMatchup; slate: Slate; snapshot: Snaps
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '6px 10px', fontFamily: SILK, fontSize: 9, color: '#5b5566' }}>
-        <div>{matchup.mine ? 'YOUR MATCHUP' : 'MNF STARTERS'}</div>
         <div style={{ fontWeight: 700, color: Math.abs(lead) < 0.05 ? '#5b5566' : lead > 0 ? ME_TXT : OPP_TXT, whiteSpace: 'nowrap' }}>{leadL}</div>
+        <div style={{ fontWeight: 700, color: INK, whiteSpace: 'nowrap' }}>{'FULL MATCHUP \u203a'}</div>
       </div>
       {rows.map(e => {
         const p = slate.lanes[e.lane][e.side];
@@ -187,7 +193,7 @@ function MatchupCard(props: { matchup: MnfMatchup; slate: Slate; snapshot: Snaps
           />
         );
       })}
-    </div>
+    </a>
   );
 }
 
@@ -221,10 +227,8 @@ export function MnfPage({ board, statuses, liveT, timeZone, subtitle, headerExtr
     if (Object.keys(fresh).length) setPops(cur => ({ ...cur, ...fresh }));
   }, [board]);
 
-  // Your matchup leads, then the closest races, since those are the ones Monday night decides.
-  const sorted = [...cards].sort((a, b) =>
-    Number(b.matchup.mine) - Number(a.matchup.mine)
-    || Math.abs(a.snapshot.winPct - 50) - Math.abs(b.snapshot.winPct - 50));
+  // The closest races lead, since those are the ones Monday night decides.
+  const sorted = [...cards].sort((a, b) => Math.abs(a.snapshot.winPct - 50) - Math.abs(b.snapshot.winPct - 50));
 
   const final = t >= board.window[1];
   const live = !replay && !final && t >= board.window[0];

@@ -72,7 +72,7 @@ it('loads the live slate from the matchup, the player pool and the real kickoffs
   expect(`${result.slate.lanes[8].me.name} | ${result.slate.lanes[8].opp.name}`).toBe(
     'Giants D/ST | Bengals D/ST',
   );
-  expect(result.slate.me).toEqual({ name: 'Somethings Gotta Gibbs', owner: 'YOU' });
+  expect(result.slate.me).toEqual({ name: 'Somethings Gotta Gibbs', owner: 'TEJAS & VINCE' });
   expect(result.slate.events).toEqual([]);
   expect(Number(result.toT(1790528400000).toFixed(6))).toBe(0.200957);
 });

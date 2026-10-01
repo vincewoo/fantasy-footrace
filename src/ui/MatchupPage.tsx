@@ -18,11 +18,8 @@ export const SOUND_KEY = 'ff_sound';
 
 const TDK: Record<string, boolean> = { passTD: true, rushTD: true, recTD: true, dtd: true };
 const RANK: Record<string, number> = { td: 5, hurt: 4, bad: 3, kick: 2, pos: 1 };
-const TAUNTS = ['TOO EASY', 'SCOREBOARD!', 'LUCKY BOUNCE', 'BENCH HIM', 'WAIT TILL SNF', 'GG NO RE'];
-const REPLIES = ["WE'LL SEE", 'PUNT IT, PAL', 'CHECK THE PROJ', 'SNF IS MINE', 'LOL OK', 'COPE', 'ZZZ'];
-const OPP_TAUNTS = ['TOO EASY', 'SCOREBOARD', 'SIT DOWN', 'HE COOKS'];
 
-type Sound = 'td' | 'bad' | 'kick' | 'hurt' | 'pos' | 'taunt' | 'reply';
+type Sound = 'td' | 'bad' | 'kick' | 'hurt' | 'pos';
 
 const SFX: Record<Sound, { notes: [number, number][]; wave: OscillatorType; vol: number }> = {
   td: { notes: [[523, 0.08], [659, 0.08], [784, 0.08], [1047, 0.2]], wave: 'square', vol: 0.06 },
@@ -30,14 +27,7 @@ const SFX: Record<Sound, { notes: [number, number][]; wave: OscillatorType; vol:
   kick: { notes: [[392, 0.06], [784, 0.12]], wave: 'square', vol: 0.045 },
   hurt: { notes: [[220, 0.15], [150, 0.28]], wave: 'triangle', vol: 0.08 },
   pos: { notes: [[880, 0.05], [1320, 0.07]], wave: 'square', vol: 0.035 },
-  taunt: { notes: [[600, 0.05], [900, 0.06]], wave: 'square', vol: 0.04 },
-  reply: { notes: [[500, 0.05], [350, 0.08]], wave: 'square', vol: 0.04 },
 };
-
-interface Bubble {
-  id: number;
-  text: string;
-}
 
 interface Banner {
   id: number;
@@ -50,7 +40,6 @@ interface PageState extends Playback {
   sound: boolean;
   anims: Record<string, PlayEvent>;
   banner: Banner | null;
-  bubbles: { me: Bubble | null; opp: Bubble | null };
   w: number;
 }
 
@@ -109,9 +98,6 @@ export interface MatchupPageProps {
   liveClock?: () => string;
   initialWidth?: number;
   storageKey?: string;
-  talk?: { send(text: string): boolean; connected: boolean; oppWatching: boolean } | null;
-  remoteTaunt?: { id: number; text: string } | null;
-  replay?: boolean;
 }
 
 export function MatchupPage({
@@ -124,28 +110,21 @@ export function MatchupPage({
   liveClock,
   initialWidth = 1200,
   storageKey = STORAGE_KEY,
-  talk = null,
-  remoteTaunt = null,
-  replay = false,
 }: MatchupPageProps): JSX.Element {
   const [state, setState] = useState<PageState>(() => ({
     ...initPlayback(readSaved(storageKey)),
     sound: readSoundPref(),
     anims: {},
     banner: null,
-    bubbles: { me: null, opp: null },
     w: initialWidth,
   }));
   const [pressed, setPressed] = useState<string | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
 
   const stateRef = useRef(state);
   const rootRef = useRef<HTMLDivElement>(null);
   const scrubRef = useRef<HTMLDivElement>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const firedAtRef = useRef<Record<string, number>>({});
-  const bidRef = useRef(0);
   const acRef = useRef<AudioContext | null>(null);
 
   const apply = (next: PageState) => {
@@ -246,22 +225,6 @@ export function MatchupPage({
     apply({ ...stateRef.current, scrubbing: false });
   };
 
-  const sendTaunt = (text: string) => {
-    const s = stateRef.current;
-    apply({ ...s, bubbles: { ...s.bubbles, me: { id: ++bidRef.current, text } } });
-    sfx('taunt');
-    if (liveNow) {
-      talk?.send(text);
-      return;
-    }
-    later(() => {
-      const cur = stateRef.current;
-      const reply = REPLIES[Math.floor(Math.random() * REPLIES.length)];
-      apply({ ...cur, bubbles: { ...cur.bubbles, opp: { id: ++bidRef.current, text: reply } } });
-      sfx('reply');
-    }, 1400);
-  };
-
   const press = (key: string) => ({
     onPointerDown: () => setPressed(key),
     onPointerUp: () => setPressed(null),
@@ -286,7 +249,6 @@ export function MatchupPage({
       const fired = slate.events.filter(e => e.t > prevT && e.t <= next.t);
       let anims = s.anims;
       let banner = s.banner;
-      let bubbles = s.bubbles;
       let snd: Sound | null = null;
       if (fired.length) {
         anims = { ...anims };
@@ -308,17 +270,14 @@ export function MatchupPage({
                 : e.kind === 'fg' || e.kind === 'xp' ? 'kick'
                   : 'pos';
           if (!snd || RANK[k] > RANK[snd]) snd = k;
-          if (!liveNow && !replay && TDK[e.kind] && e.side === 'opp' && Math.random() < 0.5) {
-            bubbles = { ...bubbles, opp: { id: ++bidRef.current, text: OPP_TAUNTS[Math.floor(Math.random() * 4)] } };
-          }
         }
       }
-      apply({ ...s, ...next, anims, banner, bubbles });
+      apply({ ...s, ...next, anims, banner });
       if (snd) sfx(snd);
       persist(storageKey, next.t, next.liveT, next.speed);
     }, 100);
     return () => clearInterval(iv);
-  }, [slate, slateMinutes, liveNow, storageKey, replay]);
+  }, [slate, slateMinutes, liveNow, storageKey]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -352,14 +311,6 @@ export function MatchupPage({
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
   }, []);
-
-  const remoteId = remoteTaunt ? remoteTaunt.id : 0;
-  useEffect(() => {
-    if (!remoteTaunt) return;
-    const cur = stateRef.current;
-    apply({ ...cur, bubbles: { ...cur.bubbles, opp: { id: ++bidRef.current, text: remoteTaunt.text } } });
-    sfx('reply');
-  }, [remoteId]);
 
   const { t, liveT, speed, scrubbing, sound, anims, banner, w } = state;
   const compact = w < 760;
@@ -460,19 +411,6 @@ export function MatchupPage({
     };
   });
 
-  const bubbleEl = (b: Bubble | null, side: Side): JSX.Element | null => {
-    if (!b) return null;
-    const L: 'left' | 'right' = side === 'me' ? 'left' : 'right';
-    return (
-      <div key={b.id} style={{ position: 'absolute', top: -18, [L]: 30, zIndex: 10, animation: 'bubble 2.8s steps(28) forwards', pointerEvents: 'none' } as CSSProperties}>
-        <div style={{ position: 'relative', background: CREAM, border: '3px solid ' + INK, borderRadius: 12, padding: '4px 12px', fontFamily: LILITA, fontSize: 17, color: INK, boxShadow: '0 3px 0 ' + INK, whiteSpace: 'nowrap' }}>
-          {b.text}
-          <div style={{ position: 'absolute', bottom: -8, [L]: 18, width: 12, height: 12, background: CREAM, borderRight: '3px solid ' + INK, borderBottom: '3px solid ' + INK, transform: 'rotate(45deg)' } as CSSProperties} />
-        </div>
-      </div>
-    );
-  };
-
   let bannerEl: JSX.Element | null = null;
   let bannerHost = -1;
   if (banner && banner.e.t <= t) {
@@ -553,8 +491,6 @@ export function MatchupPage({
                   <div style={{ fontFamily: SILK, fontSize: 8, whiteSpace: 'nowrap' }}>{`PROJ ${fmt(projected.opp)}`}</div>
                 </div>
               </div>
-              {bubbleEl(state.bubbles.me, 'me')}
-              {bubbleEl(state.bubbles.opp, 'opp')}
             </div>
             {latest ? (
               <div data-latest-play style={{ display: 'grid', gridTemplateColumns: '10px minmax(0,1fr) auto', gap: 8, alignItems: 'center', background: '#fffaf0', border: '2px solid #1c1a22', borderRadius: 10, boxShadow: '0 3px 0 #1c1a22', padding: '6px 10px' }}>
@@ -604,51 +540,6 @@ export function MatchupPage({
               <div style={{ fontFamily: SILK, fontSize: 11 }}>{`PROJ ${fmt(projected.opp)}`}</div>
             </div>
           </div>
-          {bubbleEl(state.bubbles.me, 'me')}
-          {bubbleEl(state.bubbles.opp, 'opp')}
-        </div>
-        )}
-
-        {replay ? null : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: compact ? 'nowrap' : 'wrap', overflowX: 'auto', margin: '0 -14px', padding: '0 14px 4px', scrollbarWidth: 'none' }}>
-          <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566', marginRight: 4, whiteSpace: 'nowrap', flex: 'none' }}>TALK TRASH</div>
-          {TAUNTS.map(text => (
-            <button
-              key={text}
-              onClick={() => sendTaunt(text)}
-              onMouseEnter={() => setHovered(text)}
-              onMouseLeave={() => setHovered(null)}
-              {...press(text)}
-              style={{ fontFamily: LILITA, fontSize: 14, whiteSpace: 'nowrap', padding: '6px 12px', background: hovered === text ? '#ffd23f' : '#fffaf0', border: '2px solid #1c1a22', borderRadius: 999, boxShadow: '0 3px 0 #1c1a22', cursor: 'pointer', color: '#1c1a22', flex: 'none', ...pressedStyle(text, 2) }}
-            >
-              {text}
-            </button>
-          ))}
-          {liveNow ? (
-            <>
-              <input
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key !== 'Enter') return;
-                  const text = draft.trim();
-                  setDraft('');
-                  if (text) sendTaunt(text);
-                }}
-                placeholder="SAY SOMETHING"
-                maxLength={24}
-                disabled={!talk || !talk.connected}
-                style={{ fontFamily: LILITA, fontSize: 14, width: 160, flex: 'none', padding: '6px 12px', background: CREAM, border: '2px solid ' + INK, borderRadius: 999, color: INK }}
-              />
-              <div style={{ fontFamily: SILK, fontSize: 11, letterSpacing: '.06em', color: '#5b5566', whiteSpace: 'nowrap', flex: 'none' }}>
-                {talk && talk.connected
-                  ? slate.opp.owner.includes(' & ')
-                    ? talk.oppWatching ? `${slate.opp.owner} ARE WATCHING` : `${slate.opp.owner} AREN'T HERE`
-                    : talk.oppWatching ? `${slate.opp.owner} IS WATCHING` : `${slate.opp.owner} ISN'T HERE`
-                  : 'TALK OFFLINE'}
-              </div>
-            </>
-          ) : null}
         </div>
         )}
 
