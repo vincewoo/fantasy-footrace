@@ -27,11 +27,19 @@ describe('ConnectError', () => {
 describe('HeaderControls', () => {
   it('lists every week so far, newest first, with the current one live', () => {
     const markup = renderToStaticMarkup(
-      <HeaderControls week={4} currentWeek={4} onWeek={() => {}} onChangeTeam={() => {}} />,
+      <HeaderControls week={4} currentWeek={4} onWeek={() => {}} view="scoreboard" />,
     );
 
     const options = [...markup.matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map(m => m[1]);
     expect(options).toEqual(['WEEK 4 · LIVE', 'WEEK 3 · REPLAY', 'WEEK 2 · REPLAY', 'WEEK 1 · REPLAY']);
-    expect(markup).toContain('CHANGE TEAM');
+    expect(markup).not.toContain('CHANGE TEAM');
+  });
+
+  it('links to the scoreboard and Monday night and marks the open one', () => {
+    const markup = renderToStaticMarkup(<HeaderControls week={4} currentWeek={4} onWeek={() => {}} view="mnf" />);
+
+    expect(markup).toMatch(/<a href="#"[^>]*>SCOREBOARD<\/a>/);
+    expect(markup).toMatch(/<a href="#mnf" aria-current="page"[^>]*>MNF<\/a>/);
+    expect(renderToStaticMarkup(<HeaderControls week={4} currentWeek={4} onWeek={() => {}} view="matchup" />)).not.toContain('aria-current');
   });
 });

@@ -3,11 +3,10 @@ import { expect, it } from 'vitest';
 import { snapshotAt } from '../model/derive';
 import { mockSlate } from '../sim/mock';
 import { EspnError } from '../espn/client';
-import { ConnectError, TeamPicker } from './Connect';
+import { ConnectError } from './Connect';
 import { laneKey, MatchupPage } from './MatchupPage';
 
 const HALF = mockSlate('Half PPR');
-const TAUNTS = ['TOO EASY', 'SCOREBOARD!', 'LUCKY BOUNCE', 'BENCH HIM', 'WAIT TILL SNF', 'GG NO RE'];
 
 it('renders the design\u2019s header, scoreboard and controls on the first frame', () => {
   const m = renderToStaticMarkup(<MatchupPage slate={HALF} />);
@@ -52,12 +51,13 @@ it('renders the name card of a player who has scored', () => {
   expect(m).toContain('>6.8<');
 });
 
-it('renders the six taunt buttons and the transport controls', () => {
+it('renders the transport controls and no trash talk row', () => {
   const m = renderToStaticMarkup(<MatchupPage slate={HALF} />);
   const buttons = [...m.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map(match => match[1]);
 
-  expect(buttons.filter(text => TAUNTS.includes(text))).toEqual(TAUNTS);
-  expect(buttons).toHaveLength(10);
+  expect(buttons).toEqual(['SOUND: ON', 'PAUSE', 'x1', 'LIVE']);
+  expect(m).not.toContain('TALK TRASH');
+  expect(m).not.toContain('SAY SOMETHING');
 });
 
 it('follows the slate through the pure snapshot', () => {
@@ -73,19 +73,6 @@ it('swaps in the live subtitle and keeps the design one by default', () => {
   expect(demo).toContain('WEEK 4 · SUNDAY SLATE · BACKYARD LEAGUE');
 });
 
-it('offers every league team on the picker card', () => {
-  const teams = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Team ${i + 1}`, owner: `owner${i + 1}` }));
-
-  const m = renderToStaticMarkup(
-    <TeamPicker teams={teams} leagueName="#fpandfriends" onPick={() => {}} />,
-  );
-
-  expect(m).toContain('Pick your team');
-  expect(m).toContain('#fpandfriends');
-  for (const team of teams) expect(m).toContain(team.name);
-  expect(m).not.toContain('demo');
-});
-
 it('tells the viewer how to fix a private league', () => {
   const m = renderToStaticMarkup(
     <ConnectError error={new EspnError('not visible', 401, 'private')} onRetry={() => {}} />,
@@ -94,44 +81,6 @@ it('tells the viewer how to fix a private league', () => {
   expect(m).toContain('.env.local');
   expect(m).toContain('Retry');
   expect(m).not.toContain('demo');
-});
-
-it('shows the opponent\u2019s presence and the taunt box in a live room', () => {
-  const m = renderToStaticMarkup(
-    <MatchupPage
-      slate={HALF}
-      liveNow={() => 0.06}
-      talk={{ connected: true, oppWatching: true, send: () => true }}
-    />,
-  );
-
-  expect(m).toContain('DAVE IS WATCHING');
-  expect(m).toContain('placeholder="SAY SOMETHING"');
-  const box = /<input[^>]*placeholder="SAY SOMETHING"[^>]*>/.exec(m)?.[0] ?? '';
-  expect(box).toMatch(/maxlength="24"/i);
-  expect(box).not.toContain('disabled');
-});
-
-it('says talk is offline and disables the box without a room', () => {
-  const m = renderToStaticMarkup(<MatchupPage slate={HALF} liveNow={() => 0.06} talk={null} />);
-
-  expect(m).toContain('TALK OFFLINE');
-  const box = /<input[^>]*placeholder="SAY SOMETHING"[^>]*>/.exec(m)?.[0] ?? '';
-  expect(box).toContain('disabled');
-});
-
-it('keeps the demo free of the talk box and the room status', () => {
-  const m = renderToStaticMarkup(<MatchupPage slate={HALF} />);
-
-  expect(m).not.toContain('SAY SOMETHING');
-  expect(m).not.toContain('TALK OFFLINE');
-});
-
-it('drops the trash talk row from a replay', () => {
-  const m = renderToStaticMarkup(<MatchupPage slate={HALF} replay />);
-
-  expect(m).not.toContain('TALK TRASH');
-  expect(m).not.toContain('SAY SOMETHING');
 });
 
 it('shows the real current time on the live clock instead of the timeline time', () => {
@@ -231,46 +180,6 @@ it('defaults sound to on when localStorage throws', async () => {
   clearStore();
 });
 
-const CO_GM = { ...HALF, opp: { ...HALF.opp, owner: 'EMMA & EMILY' } };
-
-it('uses a plural verb for co-GMs who are watching', () => {
-  const m = renderToStaticMarkup(
-    <MatchupPage
-      slate={CO_GM}
-      liveNow={() => 0.06}
-      talk={{ connected: true, oppWatching: true, send: () => true }}
-    />,
-  );
-
-  expect(m).toContain('EMMA &amp; EMILY ARE WATCHING');
-  expect(m).not.toContain('EMMA &amp; EMILY IS WATCHING');
-});
-
-it('uses a plural verb for co-GMs who are away', () => {
-  const m = renderToStaticMarkup(
-    <MatchupPage
-      slate={CO_GM}
-      liveNow={() => 0.06}
-      talk={{ connected: true, oppWatching: false, send: () => true }}
-    />,
-  );
-
-  expect(m).toMatch(/EMMA &amp; EMILY AREN(&#x27;|')T HERE/);
-  expect(m).not.toContain('EMMA &amp; EMILY ISN');
-});
-
-it('keeps a singular verb for a single owner', () => {
-  const m = renderToStaticMarkup(
-    <MatchupPage
-      slate={HALF}
-      liveNow={() => 0.06}
-      talk={{ connected: true, oppWatching: false, send: () => true }}
-    />,
-  );
-
-  expect(m).toMatch(/DAVE ISN(&#x27;|')T HERE/);
-});
-
 const WIDE_AXIS_ROW =
   '<div style="position:relative;height:11px;font-family:&#x27;Silkscreen&#x27;, monospace;font-size:9px;color:#5b5566;white-space:nowrap">'
   + '<div style="position:absolute;left:0">1 PM</div>'
@@ -327,7 +236,6 @@ it('swaps in the slim sticky scoreboard and latest-play strip on a phone', () =>
   expect(m).toContain(`>${latest?.text}<`);
   expect(m).toContain('>SFX ON<');
   expect(m).toContain('display:none">WEEK 4');
-  expect(m).toContain('flex-wrap:nowrap;overflow-x:auto');
 });
 
 it('puts a header above each lane and paints the names on the field on a phone', () => {

@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import { loadLeagueInfo } from './load';
-import { buildBoard, loadMnfBoard, mondayGames, pollMnf } from './mnf';
+import { buildBoard, mnfOf, mondayGames } from './mnf';
+import { loadWeek, pollWeek } from './week';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtures', name), 'utf8'));
@@ -40,7 +41,6 @@ it('keeps only the matchups with an MNF starter, and only those starters', async
   const board = buildBoard(await info(), live.schedule, season, {
     week: 3,
     timeZone: 'America/New_York',
-    myTeamId: 1,
     now: 1790640900000 + 60 * 60 * 1000,
   });
 
@@ -63,19 +63,18 @@ it('keeps only the matchups with an MNF starter, and only those starters', async
   }
 });
 
-it('puts your team on the left, labels the rest by owner and counts every starter in the score', async () => {
+it('puts the home team on the left, labels both sides by owner and counts every starter in the score', async () => {
   const board = buildBoard(await info(), live.schedule, season, {
     week: 3,
     timeZone: 'America/New_York',
-    myTeamId: 1,
     now: Date.UTC(2026, 8, 30),
   });
 
-  const mine = board.matchups.find(m => m.mine)!;
-  expect(mine.teamIds.me).toBe(1);
-  expect(mine.slate.me).toEqual({ name: 'Somethings Gotta Gibbs', owner: 'YOU' });
-  expect(mine.slate.opp.owner).toBe('IAN');
-  expect(board.matchups.filter(m => m.mine)).toHaveLength(1);
+  for (const m of board.matchups) {
+    const entry = live.schedule.find((e: any) => e.id === m.id);
+    expect(m.teamIds).toEqual({ me: entry.home.teamId, opp: entry.away.teamId });
+    expect(m.slate.me.owner).not.toBe('YOU');
+  }
 
   const other = board.matchups.find(m => m.id === 17)!;
   expect(other.slate.me.owner).toBe('PRANAY');
@@ -85,23 +84,10 @@ it('puts your team on the left, labels the rest by owner and counts every starte
   expect(fmt(snap.totals.opp)).toBe('27.7');
 });
 
-it('marks no matchup as yours when no team is picked', async () => {
-  const board = buildBoard(await info(), live.schedule, season, {
-    week: 3,
-    timeZone: 'America/New_York',
-    myTeamId: null,
-    now: 0,
-  });
-
-  expect(board.matchups.some(m => m.mine)).toBe(false);
-  expect(board.matchups.find(m => m.id === 16)!.slate.me.owner).not.toBe('YOU');
-});
-
 it('spans the MNF window on the week timeline', async () => {
   const board = buildBoard(await info(), live.schedule, season, {
     week: 3,
     timeZone: 'America/New_York',
-    myTeamId: 1,
     now: 0,
   });
 
@@ -110,18 +96,16 @@ it('spans the MNF window on the week timeline', async () => {
   expect(board.window[0]).toBeGreaterThan(0.5);
 });
 
-it('loads the board from one matchup read and the pro schedule, and polls only the matchups', async () => {
+it('narrows a loaded and polled week board to Monday night', async () => {
   let schedule = league.schedule;
-  const { urls, fetchImpl } = fakeFetch(() => schedule);
+  const { fetchImpl } = fakeFetch(() => schedule);
   const leagueInfo = await loadLeagueInfo({ fetchImpl });
 
-  const board = await loadMnfBoard(leagueInfo, { timeZone: 'America/New_York', myTeamId: 1, fetchImpl, now: 0 });
-  expect(urls).toHaveLength(3);
+  const board = mnfOf(await loadWeek(leagueInfo, { timeZone: 'America/New_York', fetchImpl, now: 0 }));
   expect(fmt(snapshotAt(board.matchups.find(m => m.id === 17)!.slate, 1).totals.me)).toBe('34.3');
 
   schedule = live.schedule;
-  const next = await pollMnf(leagueInfo, board, { timeZone: 'America/New_York', myTeamId: 1, fetchImpl, now: 0 });
-  expect(urls).toHaveLength(4);
-  expect(urls[3]).toContain('view=mLiveScoring');
+  const week = await loadWeek(leagueInfo, { timeZone: 'America/New_York', fetchImpl, now: 0 });
+  const next = mnfOf(await pollWeek(leagueInfo, week, { timeZone: 'America/New_York', fetchImpl, now: 0 }));
   expect(fmt(snapshotAt(next.matchups.find(m => m.id === 17)!.slate, 1).totals.me)).toBe('82.8');
 });
