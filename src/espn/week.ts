@@ -1,6 +1,6 @@
 import type { Side, Slate } from '../model/types';
 import { fetchLeague, fetchSeason, SEASON } from './client';
-import { eventsFromPoll, readPoll, withEvents } from './live';
+import { espnWinOf, eventsFromPoll, readPoll, withEvents, withOdds } from './live';
 import type { LeagueInfo } from './load';
 import { buildSlate, proTeamsOf } from './slate';
 import { buildTimeline } from './timeline';
@@ -56,6 +56,7 @@ export function buildWeek(
   schedule: ScheduleEntry[],
   season: unknown,
   opts: { week: number; timeZone: string; now: number },
+  prev?: WeekBoard,
 ): WeekBoard {
   const timeline = buildTimeline(weekKickoffs(season, opts.week), opts.timeZone);
   const tNow = timeline.toT(opts.now);
@@ -70,13 +71,20 @@ export function buildWeek(
       timeZone: opts.timeZone,
     });
     const cur = readPoll(schedule, meId, opts.week);
-    const slate = withEvents(
-      {
-        ...base,
-        me: { ...base.me, owner: ownerLabel(info, meId) },
-        opp: { ...base.opp, owner: ownerLabel(info, oppId) },
-      },
-      eventsFromPoll(base, null, cur, tNow, 1),
+    // Each poll rebuilds the slate, so ESPN's earlier readings carry over from the previous board.
+    const odds = prev?.matchups.find(m => m.id === entry.id)?.slate.odds;
+    const slate = withOdds(
+      withEvents(
+        {
+          ...base,
+          me: { ...base.me, owner: ownerLabel(info, meId) },
+          opp: { ...base.opp, owner: ownerLabel(info, oppId) },
+          ...(odds ? { odds } : {}),
+        },
+        eventsFromPoll(base, null, cur, tNow, 1),
+      ),
+      tNow,
+      espnWinOf(schedule, meId),
     );
 
     matchups.push({ id: entry.id, teamIds: { me: meId, opp: oppId }, slate });
@@ -109,5 +117,5 @@ export async function pollWeek(
     week: board.week,
     timeZone: opts.timeZone,
     now: opts.now ?? Date.now(),
-  });
+  }, board);
 }

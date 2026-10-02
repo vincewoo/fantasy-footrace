@@ -74,6 +74,8 @@ export interface Slate {
   opp: FantasyTeam;
   lanes: Lane[];
   events: PlayEvent[];
+  // ESPN's own matchup win probability for "me" (0..1), one reading per poll at the slate time it was read.
+  odds?: { t: number; me: number }[];
   teamColors: Record<string, TeamColors>;
   clockLabel(t: number): string;
   statusLabel(p: Player, t: number): string;

@@ -66,6 +66,10 @@ export function snapshotAt(slate: Slate, t: number): Snapshot {
     ? (totals.me > totals.opp ? 1 : totals.me < totals.opp ? 0 : 0.5)
     : Math.min(0.99, Math.max(0.01, pw));
 
+  // ESPN's number wins wherever we have one; the model only fills replay from before the first poll.
+  const espn = t < 1 ? slate.odds?.filter(o => o.t <= t).pop() : undefined;
+  if (espn) pw = espn.me;
+
   return {
     totals,
     projected: { me: totals.me + rem.me, opp: totals.opp + rem.opp },

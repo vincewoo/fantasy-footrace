@@ -338,6 +338,21 @@ function startersOf(side: any): any[] {
   return entries.filter((e: any) => !BENCH_SLOTS.has(e?.lineupSlotId));
 }
 
+// ESPN's win probability for myTeamId's side of its matchup, when the matchup score view carries one.
+export function espnWinOf(schedule: any[], myTeamId: number): number | undefined {
+  const entry = (schedule ?? []).find(
+    (m: any) => m?.home?.teamId === myTeamId || m?.away?.teamId === myTeamId,
+  );
+  const side = entry?.home?.teamId === myTeamId ? entry.home : entry?.away;
+  const p = Number(side?.winProbability);
+  return side?.winProbability != null && Number.isFinite(p) ? Math.min(1, Math.max(0, p)) : undefined;
+}
+
+export function withOdds(slate: Slate, t: number, me: number | undefined): Slate {
+  if (me === undefined) return slate;
+  return { ...slate, odds: [...(slate.odds ?? []).filter(o => o.t < t), { t, me }] };
+}
+
 export function readPoll(schedule: any[], myTeamId: number, week: number): PollState {
   const entry = (schedule ?? []).find(
     (m: any) => m?.home?.teamId === myTeamId || m?.away?.teamId === myTeamId,
