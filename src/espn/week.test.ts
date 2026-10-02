@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 import { fmt, snapshotAt } from '../model/derive';
 import { loadLeagueInfo } from './load';
-import { buildWeek, loadWeek, pollWeek } from './week';
+import { buildWeek, loadWeek, pollWeek, weekKickoffs } from './week';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): any => JSON.parse(readFileSync(join(HERE, 'fixtures', name), 'utf8'));
@@ -63,4 +63,16 @@ it('loads from one matchup read and the pro schedule, and polls only the matchup
   expect(urls).toHaveLength(4);
   expect(urls[3]).toContain('view=mLiveScoring');
   expect(fmt(snapshotAt(next.matchups.find(m => m.id === 17)!.slate, 1).totals.me)).toBe('82.8');
+});
+
+it('carries ESPN’s win probability readings across polls of the week', async () => {
+  const leagueInfo = await info();
+  const first = buildWeek(leagueInfo, league.schedule, season, { week: 3, timeZone: 'America/New_York', now: 0 });
+  const later = Math.min(...weekKickoffs(season, 3)) + 3600000;
+  const second = buildWeek(leagueInfo, live.schedule, season, { week: 3, timeZone: 'America/New_York', now: later }, first);
+
+  const m = second.matchups.find(x => x.id === 17)!;
+  const home = live.schedule.find((e: any) => e.id === 17).home.winProbability;
+  expect(second.toT(later)).toBeGreaterThan(0);
+  expect(m.slate.odds).toEqual([{ t: 0, me: 0.63 }, { t: second.toT(later), me: home }]);
 });

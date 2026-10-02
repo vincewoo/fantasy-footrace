@@ -2,9 +2,11 @@ import type { Slate } from '../model/types';
 import { fetchLeague, fetchSeason, SEASON } from './client';
 import {
   dstTiers,
+  espnWinOf,
   eventsFromPoll,
   readPoll,
   withEvents,
+  withOdds,
   type DstHistory,
   type PollState,
 } from './live';
@@ -121,17 +123,11 @@ export async function loadLiveSlate(
   const timeline = buildTimeline(weekKickoffs(season, week), opts.timeZone);
   const cur = readPoll(schedule, myTeamId, week);
   const history = await dstHistoryOf(entry, info, cur, opts.fetchImpl);
-  const seed = eventsFromPoll(
-    slate,
-    null,
-    cur,
-    timeline.toT(opts.now ?? Date.now()),
-    1,
-    history,
-  );
+  const tNow = timeline.toT(opts.now ?? Date.now());
+  const seed = eventsFromPoll(slate, null, cur, tNow, 1, history);
 
   return {
-    slate: withEvents(slate, seed),
+    slate: withOdds(withEvents(slate, seed), tNow, espnWinOf(schedule, myTeamId)),
     poll: cur,
     toT: timeline.toT,
     season: SEASON,
@@ -151,13 +147,12 @@ export async function pollLive(
 
   const cur = readPoll(schedule, live.myTeamId, live.week);
   const maxId = live.slate.events.reduce((max, e) => Math.max(max, e.id), 0);
-  const events = eventsFromPoll(
-    live.slate,
-    live.poll,
-    cur,
-    live.toT(opts.now ?? Date.now()),
-    maxId + 1,
-  );
+  const tNow = live.toT(opts.now ?? Date.now());
+  const events = eventsFromPoll(live.slate, live.poll, cur, tNow, maxId + 1);
 
-  return { ...live, slate: withEvents(live.slate, events), poll: cur };
+  return {
+    ...live,
+    slate: withOdds(withEvents(live.slate, events), tNow, espnWinOf(schedule, live.myTeamId)),
+    poll: cur,
+  };
 }

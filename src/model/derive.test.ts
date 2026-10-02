@@ -38,3 +38,13 @@ it('tracks lane totals, outs and the events so far', () => {
   expect(snapshotAt(HALF, 0.06).out.size).toBe(0);
   expect([...snapshotAt(HALF, 0.3).out]).toEqual(['opp2']);
 });
+
+it('takes ESPN’s latest win probability at or before t, and the model before the first reading', () => {
+  const slate = { ...HALF, odds: [{ t: 0.3, me: 0.42 }, { t: 0.5, me: 0.6 }] };
+
+  expect(snapshotAt(slate, 0.06).winPct).toBe(59);
+  expect(snapshotAt(slate, 0.3).winPct).toBe(42);
+  expect(snapshotAt(slate, 0.45).winPct).toBe(42);
+  expect(snapshotAt(slate, 0.7).winPct).toBe(60);
+  expect(snapshotAt(slate, 1).winPct).toBe(100);
+});
