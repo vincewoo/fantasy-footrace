@@ -842,7 +842,7 @@ describe('eventsFromPoll for a D/ST with a points-allowed history', () => {
     expect(sumOf(events.map(e => ({ kind: e.kind, yds: e.yds, pts: e.pts })))).toBe(4);
   });
 
-  it('reports a score that did not move the tier as a zero-point play', () => {
+  it('hides a score that did not move the tier', () => {
     const flat = {
       tiers: liveTiers,
       plays: [{ g: 110 / 3600, pa: 7 }, { g: 848 / 3600, pa: 14 }, { g: 0.25, pa: 15 }],
@@ -859,7 +859,6 @@ describe('eventsFromPoll for a D/ST with a points-allowed history', () => {
       '0.2 10 Bengals D/ST take the field',
       '0.210309 -2 Bengals D/ST allow a score (7 allowed)',
       '0.279475 -2 Bengals D/ST allow a score (14 allowed)',
-      '0.284349 0 Bengals D/ST allow a score (15 allowed)',
       '0.3 -5 Bengals D/ST give up yards',
     ]);
     expect(sumOf(events.map(e => ({ kind: e.kind, yds: e.yds, pts: e.pts })))).toBe(1);

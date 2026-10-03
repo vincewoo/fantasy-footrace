@@ -476,6 +476,7 @@ function dstHistoryEvents(
   for (const play of history.plays) {
     const pts = round2(tierPoints(history.tiers.pa, play.pa) - tierPoints(history.tiers.pa, prevPa));
     prevPa = play.pa;
+    if (Math.abs(pts) < 0.005) continue;
     const g = history.gNow > 0 ? play.g / history.gNow : 1;
     events.push({
       kind: 'rush',
