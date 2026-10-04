@@ -414,17 +414,20 @@ export function MatchupPage({
   const seatW = compact ? 52 : SEAT_W;
   const benchHalf = (side: Side): JSX.Element => {
     const seats = slate.bench?.[side] ?? [];
+    // Side by side, the opponent's bench hugs the right edge; stacked, both read from the left.
+    const left = side === 'me' || compact;
+    const swatch = <div style={{ width: 10, height: 10, background: side === 'me' ? ME : OPP, border: '2px solid #1c1a22' }} />;
     return (
       <div data-bench-side={side} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, background: side === 'me' ? 'rgba(74,130,240,.3)' : 'rgba(229,88,63,.28)', border: '2px solid #1c1a22', borderRadius: 6, padding: '6px 8px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: side === 'me' ? 'flex-start' : 'flex-end', fontFamily: SILK, fontSize: 10, color: '#f3f7e6', padding: '0 4px', whiteSpace: 'nowrap' }}>
-          {side === 'me' ? <div style={{ width: 10, height: 10, background: ME, border: '2px solid #1c1a22' }} /> : null}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: left ? 'flex-start' : 'flex-end', fontFamily: SILK, fontSize: 10, color: '#f3f7e6', padding: '0 4px', whiteSpace: 'nowrap' }}>
+          {left ? swatch : null}
           {slate[side].owner}
-          {side === 'opp' ? <div style={{ width: 10, height: 10, background: OPP, border: '2px solid #1c1a22' }} /> : null}
+          {left ? null : swatch}
         </div>
         {seats.length === 0 ? (
           <div style={{ fontFamily: SILK, fontSize: 10, color: '#e6f2cf', padding: '10px 4px 14px', textAlign: 'center' }}>EMPTY BENCH</div>
         ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: side === 'me' ? 'flex-start' : 'flex-end' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: left ? 'flex-start' : 'flex-end' }}>
             {seats.map((seat, k) => (
               <BenchSitter
                 key={seat.player.id}
@@ -652,7 +655,8 @@ export function MatchupPage({
             {slate.bench ? (
               <div data-bench style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
                 <div style={{ fontFamily: LILITA, fontSize: 20, color: '#f3f7e6', padding: '0 2px' }}>The Bench</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 6 }}>
+                {/* Phones stack the two benches, the viewer's on top, so each gets the full width. */}
+                <div style={{ display: 'grid', gridTemplateColumns: compact ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(0,1fr)', gap: 6 }}>
                   {benchHalf('me')}
                   {benchHalf('opp')}
                 </div>
