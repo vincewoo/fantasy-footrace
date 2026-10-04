@@ -299,3 +299,16 @@ it('seats the bench under the lanes, scoring only the benched players who have p
 it('leaves the bench off a slate that has none', () => {
   expect(renderToStaticMarkup(<MatchupPage slate={HALF} />)).not.toContain('The Bench');
 });
+
+it('stacks the two benches on a phone, the viewer’s first', () => {
+  const seat = { player: { ...HALF.lanes[0].me, id: 'b1' } };
+  const slate = { ...HALF, bench: { me: [seat], opp: [{ player: { ...HALF.lanes[0].opp, id: 'b2' } }] } };
+  const bench = (width: number) => {
+    const m = renderToStaticMarkup(<MatchupPage slate={slate} initialWidth={width} />);
+    return m.slice(m.indexOf('data-bench='));
+  };
+
+  expect(bench(393)).toMatch(/^[^>]*>.*?grid-template-columns:minmax\(0,1fr\);gap/);
+  expect(bench(1200)).toMatch(/^[^>]*>.*?grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);gap/);
+  expect(bench(393).indexOf('data-bench-side="me"')).toBeLessThan(bench(393).indexOf('data-bench-side="opp"'));
+});
