@@ -2,7 +2,7 @@ import type { BenchSeat, Beard, Hair, Lane, Player, Pos, Slate, TeamColors } fro
 import { mulberry } from '../sim/mock';
 import OVERRIDES from './lookOverrides.json';
 import LOOKS from './looks.json';
-import { PRO_TEAMS, proTeamById } from './proTeams';
+import { FREE_AGENT, PRO_TEAMS, proTeamById } from './proTeams';
 import { buildTimeline, GAME_MS, timeLabel } from './timeline';
 
 export const SLOT_LABEL: Record<number, string> = {
@@ -64,7 +64,7 @@ interface ProGame {
 const HAIRS: Hair[] = ['short', 'short', 'short', 'fade', 'fade', 'fade', 'buzz', 'buzz', 'bald', 'curly', 'curly', 'locs', 'locs', 'afro', 'long', 'bun'];
 const BEARDS: Beard[] = ['none', 'none', 'none', 'none', 'none', 'none', 'none', 'stubble', 'stubble', 'stubble', 'stubble', 'mustache', 'goatee', 'goatee', 'goatee', 'full', 'full', 'full', 'full', 'full'];
 const HAIR_COLORS = ['#1d1411', '#5a3a22', '#7a5534', '#d4a650', '#2a1d15'];
-const PRO_BY_ABBREV = new Map(Object.values(PRO_TEAMS).map(t => [t.abbrev, t]));
+const PRO_BY_ABBREV = new Map([...Object.values(PRO_TEAMS), FREE_AGENT].map(t => [t.abbrev, t]));
 
 function ownerOf(members: Map<string, any>, team: any): string {
   const ids: string[] = [team?.primaryOwner, ...(team?.owners ?? [])].filter((id: any) => !!id);
@@ -290,6 +290,7 @@ export function buildSlate(
   }
 
   const statusLabel = (p: Player, t: number): string => {
+    if (p.team === FREE_AGENT.abbrev) return 'FA';
     const kickoff = kickoffByAbbrev.get(p.team);
     if (p.window[0] === 1 && p.proj === 0 && kickoff === undefined) return 'BYE';
     if (t < p.window[0]) return kickoff === undefined ? 'BYE' : 'KO ' + timeLabel(kickoff, opts.timeZone, true);

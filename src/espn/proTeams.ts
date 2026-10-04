@@ -41,7 +41,11 @@ export const PRO_TEAMS: Record<number, ProTeam> = {
   34: { id: 34, abbrev: 'HOU', c1: '#03202F', c2: '#A71930' },
 };
 
+// ESPN files players who aren't on an NFL roster (cut, unsigned) under proTeamId 0.
+export const FREE_AGENT: ProTeam = { id: 0, abbrev: 'FA', c1: '#6b6475', c2: '#c9c3b6' };
+
 export function proTeamById(id: number): ProTeam {
+  if (id === 0) return FREE_AGENT;
   const team = PRO_TEAMS[id];
   if (!team) throw new Error('unknown proTeamId ' + id);
   return team;

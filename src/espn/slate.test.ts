@@ -6,7 +6,7 @@ import { fmt, snapshotAt } from '../model/derive';
 import type { Slate } from '../model/types';
 import LOOKS from './looks.json';
 import OVERRIDES from './lookOverrides.json';
-import { PRO_TEAMS, proTeamById } from './proTeams';
+import { FREE_AGENT, PRO_TEAMS, proTeamById } from './proTeams';
 import { buildSlate, LANE_ORDER, listTeams, LOOK_OVERRIDES, posOf, SLOT_LABEL } from './slate';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -108,6 +108,12 @@ describe('proTeams', () => {
     expect(PRO_TEAMS[9]).toEqual({ id: 9, abbrev: 'GB', c1: '#203731', c2: '#FFB612' });
     expect(PRO_TEAMS[12]).toEqual({ id: 12, abbrev: 'KC', c1: '#E31837', c2: '#FFB81C' });
     expect(PRO_TEAMS[34]).toEqual({ id: 34, abbrev: 'HOU', c1: '#03202F', c2: '#A71930' });
+  });
+
+  it('maps ESPN\u2019s id 0 to a free agent', () => {
+    expect(proTeamById(0)).toBe(FREE_AGENT);
+    expect(FREE_AGENT).toMatchObject({ id: 0, abbrev: 'FA' });
+    expect(PRO_TEAMS[0]).toBeUndefined();
   });
 
   it('throws for an unknown id', () => {
@@ -454,6 +460,16 @@ describe('buildSlate corner cases', () => {
     const kicker = mini.lanes[4].me;
     expect(kicker).toMatchObject({ name: 'Mine K', team: 'TEN', window: [1, 1], proj: 0 });
     expect(mini.statusLabel(kicker, 0)).toBe('BYE');
+  });
+
+  it('builds a player cut from his NFL team as a free agent', () => {
+    const cut = structuredClone(miniLeague);
+    cut.schedule[0].away.rosterForCurrentScoringPeriod.entries.push(entry(20, 205, 'Theirs Cut', 3, 0));
+    const slate = buildSlate(cut, miniSeason, 1, { timeZone: TZ });
+    const seat = slate.bench!.opp.find(s => s.player.name === 'Theirs Cut')!;
+    expect(seat.player).toMatchObject({ team: 'FA', window: [1, 1] });
+    expect(slate.teamColors.FA).toEqual({ c1: FREE_AGENT.c1, c2: FREE_AGENT.c2 });
+    expect(slate.statusLabel(seat.player, 0)).toBe('FA');
   });
 });
 
