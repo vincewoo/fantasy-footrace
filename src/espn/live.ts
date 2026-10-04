@@ -1,4 +1,4 @@
-import type { EventKind, PlayEvent, Pos, Side, Slate } from '../model/types';
+import type { BenchSeat, EventKind, PlayEvent, Pos, Side, Slate } from '../model/types';
 import type { ScoreAgainst, YardsAgainst } from './summary';
 
 export interface Actual {
@@ -384,6 +384,29 @@ export function readPoll(schedule: any[], myTeamId: number, week: number): PollS
 }
 
 const SIDES: Side[] = ['me', 'opp'];
+
+// Week points for every benched player (lineup slot 20; IR stays off the bench) ESPN has scored.
+export function benchPointsOf(schedule: any[], myTeamId: number, week: number): Record<string, number> {
+  const entry = (schedule ?? []).find(
+    (m: any) => m?.home?.teamId === myTeamId || m?.away?.teamId === myTeamId,
+  );
+  const pts: Record<string, number> = {};
+  for (const side of [entry?.home, entry?.away]) {
+    for (const rosterEntry of side?.rosterForCurrentScoringPeriod?.entries ?? []) {
+      if (rosterEntry?.lineupSlotId !== 20) continue;
+      const player = rosterEntry?.playerPoolEntry?.player;
+      const actual = actualOf(player, week);
+      if (actual) pts[String(player?.id)] = actual.total;
+    }
+  }
+  return pts;
+}
+
+export function withBenchPoints(slate: Slate, pts: Record<string, number>): Slate {
+  if (!slate.bench) return slate;
+  const seat = (s: BenchSeat): BenchSeat => (s.player.id in pts ? { player: s.player, pts: pts[s.player.id] } : s);
+  return { ...slate, bench: { me: slate.bench.me.map(seat), opp: slate.bench.opp.map(seat) } };
+}
 
 export interface DstTier {
   min: number;

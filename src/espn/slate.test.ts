@@ -282,11 +282,33 @@ describe('buildSlate for the recorded week 3', () => {
       'END',
     ]);
 
-    const abbrevs = [...new Set(slate.lanes.flatMap(l => [l.me.team, l.opp.team]))].sort();
+    const benched = [...slate.bench!.me, ...slate.bench!.opp].map(seat => seat.player.team);
+    const abbrevs = [...new Set([...slate.lanes.flatMap(l => [l.me.team, l.opp.team]), ...benched])].sort();
     expect(Object.keys(slate.teamColors).sort()).toEqual(abbrevs);
     expect(slate.teamColors.SF).toEqual({ c1: '#AA0000', c2: '#B3995D' });
     expect(slate.teamColors.NYG).toEqual({ c1: '#0B2265', c2: '#A71930' });
     expect(slate.teamColors.CIN).toEqual({ c1: '#FB4F14', c2: '#1b1b1b' });
+  });
+
+  it('seats each side\u2019s bench by position, leaving IR off', () => {
+    const names = (side: 'me' | 'opp') => slate.bench![side].map(seat => `${seat.player.pos} ${seat.player.name}`);
+
+    expect(names('me')).toEqual([
+      'QB C.J. Stroud',
+      'WR Michael Pittman Jr.',
+      'WR Makai Lemon',
+      'WR Adonai Mitchell',
+      'TE T.J. Hockenson',
+    ]);
+    expect(names('me')).not.toContain('RB Zach Charbonnet');
+    expect(names('opp')).toEqual([
+      'QB Justin Herbert',
+      'RB Rico Dowdle',
+      'RB MarShawn Lloyd',
+      'WR Michael Wilson',
+      'WR Malachi Fields',
+    ]);
+    expect(slate.bench!.me.every(seat => seat.pts === undefined)).toBe(true);
   });
 
   it('is deterministic and gives a player the same look on either side', () => {

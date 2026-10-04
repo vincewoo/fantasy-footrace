@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { fmt, sgn, snapshotAt } from '../model/derive';
 import type { PlayEvent, Player, Side, Slate } from '../model/types';
-import { Avatar, CelebrationFigure, trackLeft } from './Avatar';
+import { Avatar, BenchSitter, CelebrationFigure, SEAT_W, trackLeft } from './Avatar';
 import { advance, cycleSpeed, followLive, goLive, initPlayback, scrubTo, togglePlay, type Playback } from './playback';
 
 const INK = '#1c1a22';
@@ -411,6 +411,37 @@ export function MatchupPage({
     };
   });
 
+  const seatW = compact ? 52 : SEAT_W;
+  const benchHalf = (side: Side): JSX.Element => {
+    const seats = slate.bench?.[side] ?? [];
+    return (
+      <div data-bench-side={side} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, background: side === 'me' ? 'rgba(74,130,240,.3)' : 'rgba(229,88,63,.28)', border: '2px solid #1c1a22', borderRadius: 6, padding: '6px 8px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: side === 'me' ? 'flex-start' : 'flex-end', fontFamily: SILK, fontSize: 10, color: '#f3f7e6', padding: '0 4px', whiteSpace: 'nowrap' }}>
+          {side === 'me' ? <div style={{ width: 10, height: 10, background: ME, border: '2px solid #1c1a22' }} /> : null}
+          {slate[side].owner}
+          {side === 'opp' ? <div style={{ width: 10, height: 10, background: OPP, border: '2px solid #1c1a22' }} /> : null}
+        </div>
+        {seats.length === 0 ? (
+          <div style={{ fontFamily: SILK, fontSize: 10, color: '#e6f2cf', padding: '10px 4px 14px', textAlign: 'center' }}>EMPTY BENCH</div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: side === 'me' ? 'flex-start' : 'flex-end' }}>
+            {seats.map((seat, k) => (
+              <BenchSitter
+                key={seat.player.id}
+                player={seat.player}
+                colors={slate.teamColors[seat.player.team]}
+                side={side}
+                seat={k + (side === 'opp' ? 7 : 0)}
+                pts={seat.pts !== undefined && t >= seat.player.window[0] ? seat.pts : undefined}
+                width={seatW}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   let bannerEl: JSX.Element | null = null;
   let bannerHost = -1;
   if (banner && banner.e.t <= t) {
@@ -618,6 +649,15 @@ export function MatchupPage({
                 {bannerHost === i ? bannerEl : null}
               </div>
             ))}
+            {slate.bench ? (
+              <div data-bench style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                <div style={{ fontFamily: LILITA, fontSize: 20, color: '#f3f7e6', padding: '0 2px' }}>The Bench</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 6 }}>
+                  {benchHalf('me')}
+                  {benchHalf('opp')}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div style={{ position: 'sticky', top: 14, background: '#fffaf0', border: '3px solid #1c1a22', borderRadius: 16, boxShadow: '0 6px 0 #1c1a22', display: 'flex', flexDirection: 'column', minWidth: 0, maxHeight: compact ? '380px' : 'calc(100vh - 150px)', overflow: 'hidden' }}>
