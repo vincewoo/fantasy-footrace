@@ -384,3 +384,35 @@ export function Avatar({ player: p, colors: T, side, lane: i, pts, event: ev, ou
     </div>
   );
 }
+
+export const SEAT_W = 58;
+
+// A benched player sitting on one plank of the bench: the backrest shows behind their jersey, the
+// seat crosses at the hips and their legs dangle under it. The tag carries their score once they have one.
+export function BenchSitter({ player: p, colors: T, side, seat: i, pts, width = SEAT_W }: { player: Player; colors: TeamColors; side: Side; seat: number; pts?: number; width?: number }): JSX.Element {
+  const wood = (top: number, height: number, z: number): JSX.Element => (
+    <div style={{ position: 'absolute', left: -1, right: -1, top, height, background: '#c58a4c', borderTop: '2px solid ' + INK, borderBottom: '2px solid ' + INK, boxShadow: 'inset 0 2px 0 #e0a868', zIndex: z }} />
+  );
+  return (
+    <div data-bench-seat={p.id} title={`${p.name} · ${p.team}`} style={{ position: 'relative', width, height: 108, flex: 'none' }}>
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, zIndex: 5 }}>
+        <div style={{ maxWidth: width - 2, overflow: 'hidden', textOverflow: 'ellipsis', background: side === 'me' ? '#1f3f86' : '#8a2a1a', color: CREAM, border: '1.5px solid ' + INK, fontFamily: "'Silkscreen', monospace", fontSize: 8, lineHeight: 1, padding: '2px 3px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+          {p.tag || p.last.toUpperCase()}
+        </div>
+        {pts !== undefined ? (
+          <div data-bench-pts style={{ fontFamily: "'Silkscreen', monospace", fontWeight: 700, fontSize: 10, lineHeight: 1, color: INK, background: pts < 0 ? '#ff8a73' : pts > 0 ? '#b8f06a' : '#e0d8c4', border: '1.5px solid ' + INK, padding: '1px 4px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+            {fmt(pts)}
+          </div>
+        ) : null}
+      </div>
+      {wood(56, 9, 0)}
+      <div style={{ position: 'absolute', left: (width - 34) / 2, top: 42, width: 34, height: 42, zIndex: 1 }}>
+        {figure(p, T, null, null, false, i, false, false)}
+      </div>
+      {wood(72, 8, 2)}
+      {/* Posts straddle the seat edges, so neighbouring seats share one. */}
+      <div style={{ position: 'absolute', left: -3, top: 78, width: 6, height: 30, boxSizing: 'border-box', background: '#8a5a2c', border: '2px solid ' + INK, borderTop: 'none', zIndex: 0 }} />
+      <div style={{ position: 'absolute', right: -3, top: 78, width: 6, height: 30, boxSizing: 'border-box', background: '#8a5a2c', border: '2px solid ' + INK, borderTop: 'none', zIndex: 0 }} />
+    </div>
+  );
+}

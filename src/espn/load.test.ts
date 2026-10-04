@@ -75,6 +75,10 @@ it('loads the live slate from the matchup, the player pool and the real kickoffs
   expect(result.slate.me).toEqual({ name: 'Somethings Gotta Gibbs', owner: 'TEJAS & VINCE' });
   expect(result.slate.events).toEqual([]);
   expect(Number(result.toT(1790528400000).toFixed(6))).toBe(0.200957);
+
+  // Only Lloyd's Thursday game has been scored; the rest of the bench has no score yet.
+  const scored = [...result.slate.bench!.me, ...result.slate.bench!.opp].filter(seat => seat.pts !== undefined);
+  expect(scored.map(seat => `${seat.player.name} ${seat.pts}`)).toEqual(['MarShawn Lloyd 2.8']);
 });
 
 it('loads an earlier week for a replay when asked for one', async () => {

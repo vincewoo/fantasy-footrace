@@ -1,10 +1,12 @@
 import type { Slate } from '../model/types';
 import { fetchLeague, fetchSeason, SEASON } from './client';
 import {
+  benchPointsOf,
   dstTiers,
   espnWinOf,
   eventsFromPoll,
   readPoll,
+  withBenchPoints,
   withEvents,
   withOdds,
   type DstHistory,
@@ -127,7 +129,10 @@ export async function loadLiveSlate(
   const seed = eventsFromPoll(slate, null, cur, tNow, 1, history);
 
   return {
-    slate: withOdds(withEvents(slate, seed), tNow, espnWinOf(schedule, myTeamId)),
+    slate: withBenchPoints(
+      withOdds(withEvents(slate, seed), tNow, espnWinOf(schedule, myTeamId)),
+      benchPointsOf(schedule, myTeamId, week),
+    ),
     poll: cur,
     toT: timeline.toT,
     season: SEASON,
@@ -152,7 +157,10 @@ export async function pollLive(
 
   return {
     ...live,
-    slate: withOdds(withEvents(live.slate, events), tNow, espnWinOf(schedule, live.myTeamId)),
+    slate: withBenchPoints(
+      withOdds(withEvents(live.slate, events), tNow, espnWinOf(schedule, live.myTeamId)),
+      benchPointsOf(schedule, live.myTeamId, live.week),
+    ),
     poll: cur,
   };
 }

@@ -1,4 +1,4 @@
-import type { Beard, Hair, Lane, Player, Pos, Slate, TeamColors } from '../model/types';
+import type { BenchSeat, Beard, Hair, Lane, Player, Pos, Slate, TeamColors } from '../model/types';
 import { mulberry } from '../sim/mock';
 import OVERRIDES from './lookOverrides.json';
 import LOOKS from './looks.json';
@@ -157,6 +157,14 @@ function startersOf(side: any): any[] {
   return entries.filter((e: any) => e.lineupSlotId !== 20 && e.lineupSlotId !== 21);
 }
 
+const BENCH_SLOT = 20;
+const BENCH_ORDER: Pos[] = ['QB', 'RB', 'WR', 'TE', 'K', 'DST', 'DP'];
+
+function benchOf(side: any): any[] {
+  const entries = side.rosterForCurrentScoringPeriod?.entries ?? [];
+  return entries.filter((e: any) => e.lineupSlotId === BENCH_SLOT);
+}
+
 function bySlot(entries: any[]): Map<number, any[]> {
   const slots = new Map<number, any[]>();
   for (const entry of entries) {
@@ -260,16 +268,25 @@ export function buildSlate(
     }
   }
 
+  const seatsOf = (side: any): BenchSeat[] =>
+    benchOf(side)
+      .map(entry => ({ player: toPlayer(entry) }))
+      .sort((a, b) => BENCH_ORDER.indexOf(a.player.pos) - BENCH_ORDER.indexOf(b.player.pos));
+  const bench = { me: seatsOf(mine), opp: seatsOf(theirs) };
+
   const teamColors: Record<string, TeamColors> = {};
-  for (const lane of lanes) {
-    for (const player of [lane.me, lane.opp]) {
-      if (player.team in teamColors) continue;
-      const pro = PRO_BY_ABBREV.get(player.team);
-      if (!pro) continue;
-      teamColors[player.team] = pro.numC
-        ? { c1: pro.c1, c2: pro.c2, numC: pro.numC }
-        : { c1: pro.c1, c2: pro.c2 };
-    }
+  const everyone = [
+    ...lanes.flatMap(lane => [lane.me, lane.opp]),
+    ...bench.me.map(seat => seat.player),
+    ...bench.opp.map(seat => seat.player),
+  ];
+  for (const player of everyone) {
+    if (player.team in teamColors) continue;
+    const pro = PRO_BY_ABBREV.get(player.team);
+    if (!pro) continue;
+    teamColors[player.team] = pro.numC
+      ? { c1: pro.c1, c2: pro.c2, numC: pro.numC }
+      : { c1: pro.c1, c2: pro.c2 };
   }
 
   const statusLabel = (p: Player, t: number): string => {
@@ -284,6 +301,7 @@ export function buildSlate(
     me,
     opp,
     lanes,
+    bench,
     events: [],
     teamColors,
     clockLabel: timeline.clockLabel,

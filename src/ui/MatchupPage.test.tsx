@@ -269,3 +269,33 @@ it('keeps the subtitle on a compact screen wider than 520px', () => {
   expect(m).toContain('data-compact-scoreboard');
   expect(m).toContain('display:block">WEEK 4');
 });
+
+it('seats the bench under the lanes, scoring only the benched players who have played', () => {
+  const [qb, rb] = [HALF.lanes[0].me, HALF.lanes[1].opp];
+  const slate = {
+    ...HALF,
+    bench: {
+      me: [{ player: { ...qb, id: 'b1', last: 'Backup', window: [0, 0.1] as [number, number] }, pts: 7.25 }],
+      opp: [
+        { player: { ...rb, id: 'b2', last: 'Later', window: [0.95, 1] as [number, number] }, pts: 3 },
+        { player: { ...rb, id: 'b3', last: 'Idle', window: [0, 0.1] as [number, number] } },
+      ],
+    },
+  };
+  const m = renderToStaticMarkup(<MatchupPage slate={slate} />);
+
+  expect(m).toContain('The Bench');
+  expect(m.indexOf('The Bench')).toBeGreaterThan(m.lastIndexOf('2× PROJ'));
+  expect(m).toContain('data-bench-seat="b1"');
+  expect(m).toContain('>BACKUP<');
+  expect(m).toMatch(/data-bench-pts="true"[^>]*>7.3</);
+  // a game that hasn't kicked off at the playhead shows no score yet, nor does a player without one
+  expect(m).toContain('>LATER<');
+  expect(m).toContain('>IDLE<');
+  expect(m.match(/data-bench-pts/g)).toHaveLength(1);
+  expect(m.indexOf('data-bench-side="me"')).toBeLessThan(m.indexOf('data-bench-side="opp"'));
+});
+
+it('leaves the bench off a slate that has none', () => {
+  expect(renderToStaticMarkup(<MatchupPage slate={HALF} />)).not.toContain('The Bench');
+});

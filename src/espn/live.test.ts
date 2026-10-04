@@ -9,6 +9,7 @@ import { scoresAgainst, yardsAgainst } from './summary';
 import { buildTimeline } from './timeline';
 import {
   actualOf,
+  benchPointsOf,
   decompose,
   describeAdjust,
   describeLive,
@@ -17,6 +18,7 @@ import {
   eventsFromPoll,
   readPoll,
   tierPoints,
+  withBenchPoints,
   withEvents,
   type Actual,
   type DstHistory,
@@ -277,6 +279,31 @@ describe('readPoll', () => {
 
   it('throws for a team with no matchup', () => {
     expect(() => readPoll(league.schedule, 4, WEEK)).toThrow('no matchup for team 4');
+  });
+});
+
+describe('bench points', () => {
+  const schedule = liveMatchup1141.schedule;
+  const benchPts = benchPointsOf(schedule, 1, WEEK);
+  const named = (pts: Record<string, number>, slate: Slate) =>
+    [...slate.bench!.me, ...slate.bench!.opp]
+      .filter(seat => seat.player.id in pts)
+      .map(seat => `${seat.player.last} ${pts[seat.player.id]}`);
+
+  it('reads the scored bench of both sides and nothing from the lineup or IR', () => {
+    const slate = slateOf(1);
+    const starters = new Set(slate.lanes.flatMap(l => [l.me.id, l.opp.id]));
+
+    expect(Object.keys(benchPts).some(id => starters.has(id))).toBe(false);
+    expect(benchPts['4426385']).toBeUndefined(); // Charbonnet, on IR
+    expect(named(benchPts, slate)).toEqual(['Stroud 6.6', 'Pittman Jr. 2.6', 'Mitchell 0', 'Herbert 8.7', 'Dowdle 0', 'Lloyd 2.8', 'Fields 1.4']);
+  });
+
+  it('puts the points on the matching seats and leaves the unscored ones empty', () => {
+    const slate = withBenchPoints(slateOf(1), benchPts);
+
+    expect(slate.bench!.me.map(seat => seat.pts)).toEqual([6.6, 2.6, undefined, 0, undefined]);
+    expect(slate.bench!.opp.find(seat => seat.player.last === 'Herbert')!.pts).toBe(8.7);
   });
 });
 

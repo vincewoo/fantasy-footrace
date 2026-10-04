@@ -21,13 +21,10 @@ function readView(): View {
   return typeof location === 'undefined' ? { kind: 'scoreboard' } : parseView(location.hash);
 }
 
-function inGame(slate: Slate, tNow: number): boolean {
-  return slate.lanes.some(lane =>
-    (['me', 'opp'] as const).some(side => {
-      const p = lane[side];
-      return p.id !== 'empty' && p.window[0] < tNow && tNow < p.window[1];
-    }),
-  );
+function inGame(slate: Slate, tNow: number, withBench = false): boolean {
+  const players = slate.lanes.flatMap(lane => [lane.me, lane.opp]);
+  if (withBench && slate.bench) players.push(...[...slate.bench.me, ...slate.bench.opp].map(seat => seat.player));
+  return players.some(p => p.id !== 'empty' && p.window[0] < tNow && tNow < p.window[1]);
 }
 
 function Loading(): JSX.Element {
@@ -203,7 +200,8 @@ export default function App() {
         });
       } else {
         const current = liveRef.current;
-        if (!current || !inGame(current.slate, current.toT(now))) return;
+        // The matchup page also shows bench scores, so a benched player's game keeps it polling.
+        if (!current || !inGame(current.slate, current.toT(now), true)) return;
         season = current.season;
         weekNo = current.week;
         read = pollLive(info, current).then(next => {

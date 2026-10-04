@@ -53,6 +53,12 @@ export interface Lane {
   opp: Player;
 }
 
+// A benched player and their points so far this week, once ESPN has scored them.
+export interface BenchSeat {
+  player: Player;
+  pts?: number;
+}
+
 export interface FantasyTeam {
   name: string;
   owner: string;
@@ -73,6 +79,8 @@ export interface Slate {
   me: FantasyTeam;
   opp: FantasyTeam;
   lanes: Lane[];
+  // Bench players (not IR) for each side; they sit out the race.
+  bench?: Record<Side, BenchSeat[]>;
   events: PlayEvent[];
   // ESPN's own matchup win probability for "me" (0..1), one reading per poll at the slate time it was read.
   odds?: { t: number; me: number }[];
