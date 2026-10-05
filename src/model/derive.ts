@@ -1,4 +1,4 @@
-import type { PlayEvent, Side, Slate } from './types';
+import type { PlayEvent, Pos, Side, Slate } from './types';
 
 const SIDES: Side[] = ['me', 'opp'];
 
@@ -78,4 +78,38 @@ export function snapshotAt(slate: Slate, t: number): Snapshot {
     out,
     past,
   };
+}
+
+// The positions ESPN lets into each lineup slot, keyed by the lane's slot label. Every IDP slot
+// takes any defensive player, since a Player only knows it is a DP.
+const IDP: Pos[] = ['DP'];
+const SLOT_FITS: Record<string, Pos[]> = {
+  QB: ['QB'],
+  TQB: ['QB'],
+  RB: ['RB'],
+  'RB/WR': ['RB', 'WR'],
+  WR: ['WR'],
+  'WR/TE': ['WR', 'TE'],
+  TE: ['TE'],
+  FLEX: ['RB', 'WR', 'TE'],
+  OP: ['QB', 'RB', 'WR', 'TE'],
+  DT: IDP,
+  DE: IDP,
+  LB: IDP,
+  DL: IDP,
+  CB: IDP,
+  S: IDP,
+  DB: IDP,
+  DP: IDP,
+  'D/ST': ['DST'],
+  K: ['K'],
+};
+
+export function slotFits(slot: string, pos: Pos): boolean {
+  return (SLOT_FITS[slot] ?? []).includes(pos);
+}
+
+// True when a benched player's points beat a starter on their side in a slot they could have filled.
+export function outscoresAStarter(slate: Slate, snapshot: Snapshot, side: Side, pos: Pos, pts: number): boolean {
+  return slate.lanes.some((lane, i) => slotFits(lane.slot, pos) && pts > snapshot.laneTotals[i][side]);
 }

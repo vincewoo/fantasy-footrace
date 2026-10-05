@@ -13,8 +13,11 @@ button{font:inherit}
 @keyframes arm-up-b{0%,100%{transform:rotate(0)}18%,60%{transform:rotate(165deg)}}
 @keyframes arm-up-f-late{0%,62%,100%{transform:rotate(0)}70%,94%{transform:rotate(-165deg)}}
 @keyframes arm-up-b-late{0%,62%,100%{transform:rotate(0)}70%,94%{transform:rotate(165deg)}}
+@keyframes arm-wave-f{0%{transform:rotate(-8deg)}100%{transform:rotate(14deg)}}
+@keyframes arm-wave-b{0%{transform:rotate(8deg)}100%{transform:rotate(-14deg)}}
 @keyframes arm-throw{0%{transform:rotate(0)}25%{transform:rotate(140deg)}45%{transform:rotate(290deg)}100%{transform:rotate(360deg)}}
 @keyframes av-idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes av-wave{0%,50%,100%{transform:translateY(0)}25%,75%{transform:translateY(-2px)}}
 @keyframes av-jump{0%,12%,45%,100%{transform:translateY(0)}28%{transform:translateY(-16px)}}
 @keyframes av-bob{0%,25%,100%{transform:translateY(0)}32%,48%,64%,80%{transform:translateY(-3px)}40%,56%,72%,88%{transform:translateY(0)}}
 @keyframes av-td{0%,60%{transform:translateY(0) rotate(0)}70%{transform:translateY(-20px) rotate(0)}82%{transform:translateY(-20px) rotate(360deg)}90%{transform:translateY(0) rotate(360deg)}95%{transform:translateY(-7px) rotate(360deg)}100%{transform:translateY(0) rotate(360deg)}}

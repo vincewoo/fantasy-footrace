@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { fmt, sgn, snapshotAt } from '../model/derive';
+import { fmt, outscoresAStarter, sgn, snapshotAt } from '../model/derive';
 import type { PlayEvent, Player, Side, Slate } from '../model/types';
 import { Avatar, BenchSitter, CelebrationFigure, SEAT_W, trackLeft } from './Avatar';
 import { advance, cycleSpeed, followLive, goLive, initPlayback, scrubTo, togglePlay, type Playback } from './playback';
@@ -428,17 +428,21 @@ export function MatchupPage({
           <div style={{ fontFamily: SILK, fontSize: 10, color: '#e6f2cf', padding: '10px 4px 14px', textAlign: 'center' }}>EMPTY BENCH</div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: left ? 'flex-start' : 'flex-end' }}>
-            {seats.map((seat, k) => (
-              <BenchSitter
-                key={seat.player.id}
-                player={seat.player}
-                colors={slate.teamColors[seat.player.team]}
-                side={side}
-                seat={k + (side === 'opp' ? 7 : 0)}
-                pts={seat.pts !== undefined && t >= seat.player.window[0] ? seat.pts : undefined}
-                width={seatW}
-              />
-            ))}
+            {seats.map((seat, k) => {
+              const pts = seat.pts !== undefined && t >= seat.player.window[0] ? seat.pts : undefined;
+              return (
+                <BenchSitter
+                  key={seat.player.id}
+                  player={seat.player}
+                  colors={slate.teamColors[seat.player.team]}
+                  side={side}
+                  seat={k + (side === 'opp' ? 7 : 0)}
+                  pts={pts}
+                  width={seatW}
+                  waving={pts !== undefined && outscoresAStarter(slate, snapshot, side, seat.player.pos, pts)}
+                />
+              );
+            })}
           </div>
         )}
       </div>

@@ -142,6 +142,7 @@ function figure(
     sack: 'av-lunge 1.2s steps(16)',
     takeaway: 'av-jump 1.6s steps(24)',
     hurt: 'av-hurt 1.4s steps(18) forwards',
+    wave: `av-wave .8s steps(4) ${-(i * 0.13).toFixed(2)}s infinite`,
   };
   const bodyAnim = BANNER
     ? (C!.body ? CEL18(C!.body) : 'none')
@@ -152,7 +153,7 @@ function figure(
         : a ? BODY[a]
           : boost ? `hover 1s steps(6) ${-(i * 0.2).toFixed(2)}s infinite`
             : isOut ? 'none' : `av-idle 1.1s steps(2) ${-(i * 0.17).toFixed(2)}s infinite`;
-  const run = !BANNER && a && !['kick', 'hurt', 'throw', 'sack'].includes(a);
+  const run = !BANNER && a && !['kick', 'hurt', 'throw', 'sack', 'wave'].includes(a);
   const legAnim = (d: number, name: string | null) => withCel(run ? `leg .16s steps(2) ${(0.4 + d).toFixed(2)}s 7 alternate` : 'none', name);
   const limb = (origin: string, anim: string): CSSProperties => ({ transformBox: 'view-box', transformOrigin: origin, animation: anim });
   const leg = (x: number, origin: string, anim: string) => (
@@ -161,20 +162,28 @@ function figure(
       <path d={`M${x - 0.6} 37.6 h7.6 a1.4 1.4 0 0 1 0 2.8 h-7.6 z`} fill={INK} />
     </g>
   );
+  // A wave raises both arms overhead and swings them side to side, out of step with each other.
+  const waveArm = (name: string, d: number) => `${name} .4s steps(3) ${-(i * 0.13 + d).toFixed(2)}s infinite alternate`;
   const armFbase = BANNER ? 'none'
     : (a === 'throw' || a === 'throwTD' || a === 'int') ? 'arm-throw 1.4s steps(18)'
-      : (a === 'catch' || a === 'takeaway') ? 'arm-up-f 1.6s steps(20)' : 'none';
+      : (a === 'catch' || a === 'takeaway') ? 'arm-up-f 1.6s steps(20)'
+        : a === 'wave' ? waveArm('arm-wave-f', 0) : 'none';
   const armBbase = BANNER ? 'none'
-    : (a === 'catch' || a === 'takeaway') ? 'arm-up-b 1.6s steps(20)' : 'none';
+    : (a === 'catch' || a === 'takeaway') ? 'arm-up-b 1.6s steps(20)'
+      : a === 'wave' ? waveArm('arm-wave-b', 0.2) : 'none';
   const armF = withCel(armFbase, C ? C.armF : null);
   const armB = withCel(armBbase, C ? C.armB : null);
   const mood = BANNER ? 'happy'
     : (a === 'int' || a === 'fumble' || a === 'hurt' || (isOut && !a)) ? 'sad'
-      : (TD || a === 'catch' || a === 'takeaway' || a === 'sack') ? 'happy' : 'norm';
+      : (TD || a === 'catch' || a === 'takeaway' || a === 'sack' || a === 'wave') ? 'happy' : 'norm';
   const faceAnim = C && C.face ? 'cel-face-away 1.8s steps(1) infinite' : undefined;
   const art = (
     <svg key="art" width={34} height={42} viewBox="0 0 34 42" style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible' }}>
-      <g style={limb(PIVOT.armB, armB)}>{armArt('M8.6 20 C6.4 22 5.4 25 5.4 28', 'M8.8 19.6 C7.4 20.6 6.6 21.8 6.2 23', skin, T.c1)}</g>
+      <g style={limb(PIVOT.armB, armB)}>
+        {a === 'wave'
+          ? armArt('M8.6 20 C4.6 15 0.6 8 -1.4 -1', 'M8.8 19.6 C7.8 18.2 7.1 16.8 6.6 15.4', skin, T.c1)
+          : armArt('M8.6 20 C6.4 22 5.4 25 5.4 28', 'M8.8 19.6 C7.4 20.6 6.6 21.8 6.2 23', skin, T.c1)}
+      </g>
       {leg(10.4, PIVOT.legB, legAnim(0, C ? C.legB : null))}
       {leg(17.6, PIVOT.legF, a === 'kick' ? 'leg-kick 1.4s steps(18)' : legAnim(0.08, C ? C.legF : null))}
       <path
@@ -185,7 +194,11 @@ function figure(
         strokeLinejoin="round"
       />
       <text x={17} y={28.2} textAnchor="middle" fontFamily="'Silkscreen', monospace" fontWeight={700} fontSize={8.5} fill={T.numC || '#fff'}>{String(p.num)}</text>
-      <g style={limb(PIVOT.armF, armF)}>{armArt('M25.4 20 C27.6 22 28.6 25 28.6 28', 'M25.2 19.6 C26.6 20.6 27.4 21.8 27.8 23', skin, T.c1)}</g>
+      <g style={limb(PIVOT.armF, armF)}>
+        {a === 'wave'
+          ? armArt('M25.4 20 C29.4 15 33.4 8 35.4 -1', 'M25.2 19.6 C26.2 18.2 26.9 16.8 27.4 15.4', skin, T.c1)
+          : armArt('M25.4 20 C27.6 22 28.6 25 28.6 28', 'M25.2 19.6 C26.6 20.6 27.4 21.8 27.8 23', skin, T.c1)}
+      </g>
       <g transform="translate(17 5.2)">
         <Head
           hair={p.hair}
@@ -389,12 +402,13 @@ export const SEAT_W = 58;
 
 // A benched player sitting on one plank of the bench: the backrest shows behind their jersey, the
 // seat crosses at the hips and their legs dangle under it. The tag carries their score once they have one.
-export function BenchSitter({ player: p, colors: T, side, seat: i, pts, width = SEAT_W }: { player: Player; colors: TeamColors; side: Side; seat: number; pts?: number; width?: number }): JSX.Element {
+// One who is outscoring a starter they could have replaced stands up on the seat and waves both arms.
+export function BenchSitter({ player: p, colors: T, side, seat: i, pts, width = SEAT_W, waving = false }: { player: Player; colors: TeamColors; side: Side; seat: number; pts?: number; width?: number; waving?: boolean }): JSX.Element {
   const wood = (top: number, height: number, z: number): JSX.Element => (
     <div style={{ position: 'absolute', left: -1, right: -1, top, height, background: '#c58a4c', borderTop: '2px solid ' + INK, borderBottom: '2px solid ' + INK, boxShadow: 'inset 0 2px 0 #e0a868', zIndex: z }} />
   );
   return (
-    <div data-bench-seat={p.id} title={`${p.name} · ${p.team}`} style={{ position: 'relative', width, height: 108, flex: 'none' }}>
+    <div data-bench-seat={p.id} data-bench-waving={waving || undefined} title={`${p.name} · ${p.team}`} style={{ position: 'relative', width, height: 124, flex: 'none' }}>
       <div style={{ position: 'absolute', left: 0, right: 0, top: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, zIndex: 5 }}>
         <div style={{ maxWidth: width - 2, overflow: 'hidden', textOverflow: 'ellipsis', background: side === 'me' ? '#1f3f86' : '#8a2a1a', color: CREAM, border: '1.5px solid ' + INK, fontFamily: "'Silkscreen', monospace", fontSize: 8, lineHeight: 1, padding: '2px 3px', borderRadius: 3, whiteSpace: 'nowrap' }}>
           {p.tag || p.last.toUpperCase()}
@@ -405,14 +419,15 @@ export function BenchSitter({ player: p, colors: T, side, seat: i, pts, width = 
           </div>
         ) : null}
       </div>
-      {wood(56, 9, 0)}
-      <div style={{ position: 'absolute', left: (width - 34) / 2, top: 42, width: 34, height: 42, zIndex: 1 }}>
-        {figure(p, T, null, null, false, i, false, false)}
+      {wood(72, 9, 0)}
+      {/* Standing, the boots rest on top of the seat plank and the figure stands in front of it. */}
+      <div style={{ position: 'absolute', left: (width - 34) / 2, top: waving ? 48 : 58, width: 34, height: 42, zIndex: waving ? 3 : 1 }}>
+        {figure(p, T, waving ? 'wave' : null, null, false, i, false, false)}
       </div>
-      {wood(72, 8, 2)}
+      {wood(88, 8, 2)}
       {/* Posts straddle the seat edges, so neighbouring seats share one. */}
-      <div style={{ position: 'absolute', left: -3, top: 78, width: 6, height: 30, boxSizing: 'border-box', background: '#8a5a2c', border: '2px solid ' + INK, borderTop: 'none', zIndex: 0 }} />
-      <div style={{ position: 'absolute', right: -3, top: 78, width: 6, height: 30, boxSizing: 'border-box', background: '#8a5a2c', border: '2px solid ' + INK, borderTop: 'none', zIndex: 0 }} />
+      <div style={{ position: 'absolute', left: -3, top: 94, width: 6, height: 30, boxSizing: 'border-box', background: '#8a5a2c', border: '2px solid ' + INK, borderTop: 'none', zIndex: 0 }} />
+      <div style={{ position: 'absolute', right: -3, top: 94, width: 6, height: 30, boxSizing: 'border-box', background: '#8a5a2c', border: '2px solid ' + INK, borderTop: 'none', zIndex: 0 }} />
     </div>
   );
 }
