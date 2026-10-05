@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { mockSlate } from '../sim/mock';
-import { erf, fmt, sgn, snapshotAt } from './derive';
+import { erf, fmt, outscoresAStarter, sgn, slotFits, snapshotAt } from './derive';
 
 const HALF = mockSlate('Half PPR');
 
@@ -47,4 +47,24 @@ it('takes ESPN’s latest win probability at or before t, and the model before t
   expect(snapshotAt(slate, 0.45).winPct).toBe(42);
   expect(snapshotAt(slate, 0.7).winPct).toBe(60);
   expect(snapshotAt(slate, 1).winPct).toBe(100);
+});
+
+it('fits each position only into the slots ESPN allows it', () => {
+  expect(slotFits('FLEX', 'TE')).toBe(true);
+  expect(slotFits('FLEX', 'QB')).toBe(false);
+  expect(slotFits('OP', 'QB')).toBe(true);
+  expect(slotFits('RB/WR', 'TE')).toBe(false);
+  expect(slotFits('LB', 'DP')).toBe(true);
+  expect(slotFits('D/ST', 'DST')).toBe(true);
+  expect(slotFits('K', 'WR')).toBe(false);
+});
+
+it('flags a benched score that beats a starter in a slot the player could fill', () => {
+  const slate = mockSlate('Half PPR');
+  const snap = snapshotAt(slate, 1);
+  const lowestWr = Math.min(...slate.lanes.flatMap((lane, i) => (slotFits(lane.slot, 'WR') ? [snap.laneTotals[i].me] : [])));
+  expect(outscoresAStarter(slate, snap, 'me', 'WR', lowestWr + 0.1)).toBe(true);
+  expect(outscoresAStarter(slate, snap, 'me', 'WR', lowestWr)).toBe(false);
+  // no lane takes a defensive player, however big the score
+  expect(outscoresAStarter(slate, snap, 'me', 'DP', 99)).toBe(false);
 });

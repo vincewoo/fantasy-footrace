@@ -296,6 +296,30 @@ it('seats the bench under the lanes, scoring only the benched players who have p
   expect(m.indexOf('data-bench-side="me"')).toBeLessThan(m.indexOf('data-bench-side="opp"'));
 });
 
+it('stands up and waves the benched players outscoring a starter they could have replaced', () => {
+  const [qb, rb] = [HALF.lanes[0].me, HALF.lanes[1].opp];
+  const early: [number, number] = [0, 0.1];
+  const slate = {
+    ...HALF,
+    // no plays yet, so every starter sits at zero
+    events: [],
+    bench: {
+      me: [
+        { player: { ...qb, id: 'b1', window: early }, pts: 4 },
+        { player: { ...qb, id: 'b2', pos: 'DP' as const, window: early }, pts: 9 },
+      ],
+      opp: [{ player: { ...rb, id: 'b3', window: early }, pts: 0 }],
+    },
+  };
+  const m = renderToStaticMarkup(<MatchupPage slate={slate} />);
+
+  expect(m).toMatch(/data-bench-seat="b1" data-bench-waving="true"/);
+  expect(m).toContain('arm-wave-f');
+  expect(m).toContain('arm-wave-b');
+  // no lane takes a defensive player, and a tie with an empty-handed starter isn't outscoring them
+  expect(m.match(/data-bench-waving/g)).toHaveLength(1);
+});
+
 it('leaves the bench off a slate that has none', () => {
   expect(renderToStaticMarkup(<MatchupPage slate={HALF} />)).not.toContain('The Bench');
 });
