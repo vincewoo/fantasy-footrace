@@ -270,6 +270,21 @@ it('keeps the subtitle on a compact screen wider than 520px', () => {
   expect(m).toContain('display:block">WEEK 4');
 });
 
+it('shows ESPN’s reading under the win % row only when the slate has one', () => {
+  const slate = { ...HALF, odds: [{ t: 0.3, me: 0.42 }, { t: 0.5, me: 0.6 }] };
+  stubStore({ gd_sim_v1: JSON.stringify({ t: 0.5, liveT: 0.5, speed: 1 }) });
+  const wide = renderToStaticMarkup(<MatchupPage slate={slate} initialWidth={1200} />);
+  const phone = renderToStaticMarkup(<MatchupPage slate={slate} initialWidth={390} />);
+  const none = renderToStaticMarkup(<MatchupPage slate={HALF} />);
+  clearStore();
+
+  expect(wide).toContain('>ESPN 60%<');
+  expect((wide.match(/data-espn-win/g) ?? []).length).toBe(1);
+  expect((phone.match(/data-espn-win/g) ?? []).length).toBe(1);
+  expect(none).not.toContain('data-espn-win');
+  expect(none).not.toContain('ESPN');
+});
+
 it('seats the bench under the lanes, scoring only the benched players who have played', () => {
   const [qb, rb] = [HALF.lanes[0].me, HALF.lanes[1].opp];
   const slate = {

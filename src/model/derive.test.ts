@@ -39,14 +39,21 @@ it('tracks lane totals, outs and the events so far', () => {
   expect([...snapshotAt(HALF, 0.3).out]).toEqual(['opp2']);
 });
 
-it('takes ESPN’s latest win probability at or before t, and the model before the first reading', () => {
+it('ignores ESPN’s reading for winPct and reports it as espnWinPct instead', () => {
   const slate = { ...HALF, odds: [{ t: 0.3, me: 0.42 }, { t: 0.5, me: 0.6 }] };
 
-  expect(snapshotAt(slate, 0.06).winPct).toBe(59);
-  expect(snapshotAt(slate, 0.3).winPct).toBe(42);
-  expect(snapshotAt(slate, 0.45).winPct).toBe(42);
-  expect(snapshotAt(slate, 0.7).winPct).toBe(60);
-  expect(snapshotAt(slate, 1).winPct).toBe(100);
+  for (const t of [0.06, 0.3, 0.45, 0.7, 1]) {
+    expect(snapshotAt(slate, t).winPct).toBe(snapshotAt(HALF, t).winPct);
+  }
+
+  for (const t of [0.06, 1]) {
+    const snap = snapshotAt(slate, t);
+    expect(snap.espnWinPct).toBeUndefined();
+    expect('espnWinPct' in snap).toBe(false);
+  }
+  expect(snapshotAt(slate, 0.3).espnWinPct).toBe(42);
+  expect(snapshotAt(slate, 0.45).espnWinPct).toBe(42);
+  expect(snapshotAt(slate, 0.7).espnWinPct).toBe(60);
 });
 
 it('fits each position only into the slots ESPN allows it', () => {

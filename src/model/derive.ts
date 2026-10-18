@@ -27,6 +27,7 @@ export interface Snapshot {
   totals: SideTotals;
   projected: SideTotals;
   winPct: number;
+  espnWinPct?: number;
   laneTotals: { me: number; opp: number }[];
   out: Set<string>;
   past: PlayEvent[];
@@ -66,14 +67,14 @@ export function snapshotAt(slate: Slate, t: number): Snapshot {
     ? (totals.me > totals.opp ? 1 : totals.me < totals.opp ? 0 : 0.5)
     : Math.min(0.99, Math.max(0.01, pw));
 
-  // ESPN's number wins wherever we have one; the model only fills replay from before the first poll.
+  // ESPN's poll only ever rides along as a second opinion: our variance-additive number stays winPct.
   const espn = t < 1 ? slate.odds?.filter(o => o.t <= t).pop() : undefined;
-  if (espn) pw = espn.me;
 
   return {
     totals,
     projected: { me: totals.me + rem.me, opp: totals.opp + rem.opp },
     winPct: Math.round(pw * 100),
+    ...(espn ? { espnWinPct: Math.round(espn.me * 100) } : {}),
     laneTotals,
     out,
     past,

@@ -522,6 +522,7 @@ export function MatchupPage({
                   <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontFamily: SILK, fontSize: 8, whiteSpace: 'nowrap' }}>
                     <div>{wp + '%'}</div><div style={{ opacity: 0.8 }}>WIN %</div><div>{100 - wp + '%'}</div>
                   </div>
+                  {snapshot.espnWinPct !== undefined ? <div data-espn-win style={{ fontFamily: SILK, fontSize: 8, opacity: 0.7, whiteSpace: 'nowrap' }}>{`ESPN ${snapshot.espnWinPct}%`}</div> : null}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: SILK, fontSize: 9 }}>{slate.opp.owner}<div style={{ width: 8, height: 8, background: '#e5583f', border: '1.5px solid #cdef8a' }} /></div>
@@ -562,6 +563,7 @@ export function MatchupPage({
                   <div style={{ opacity: 0.8 }}>WIN PROB</div>
                   <div>{`${100 - wp}% ${slate.opp.owner}`}</div>
                 </div>
+                {snapshot.espnWinPct !== undefined ? <div data-espn-win style={{ fontFamily: SILK, fontSize: 10, opacity: 0.7, whiteSpace: 'nowrap' }}>{`ESPN ${snapshot.espnWinPct}%`}</div> : null}
                 <div style={{ height: 18, border: '2px solid #cdef8a', display: 'flex', padding: 2, gap: 2 }}>
                   <div style={{ width: wp + '%', background: '#4a82f0', transition: 'width .6s steps(8)' }} />
                   <div style={{ flex: 1, background: '#e5583f' }} />
