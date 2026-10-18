@@ -400,10 +400,42 @@ export function Avatar({ player: p, colors: T, side, lane: i, pts, event: ev, ou
 
 export const SEAT_W = 58;
 
+// Injury kit drawn over a seated bench player: a gauze band around the head, a cast over the front
+// leg and a pair of crutches leaning on the bench. top is the figure box origin, so the kit tracks
+// the player whether they sit or stand up to wave.
+function injuryArt(top: number, width: number): JSX.Element {
+  const cx = width / 2;
+  const crutch = (x: number, tilt: number): JSX.Element => (
+    <g transform={`translate(${x} ${top - 6}) rotate(${tilt})`}>
+      <rect x={-1.6} y={0} width={3.2} height={46} rx={1.6} fill="#c58a4c" stroke={INK} strokeWidth={1.6} />
+      <rect x={-4} y={-3} width={8} height={4.4} rx={2} fill="#8a5a2c" stroke={INK} strokeWidth={1.4} />
+      <rect x={-4.6} y={20} width={9.2} height={3.6} rx={1.8} fill="#8a5a2c" stroke={INK} strokeWidth={1.4} />
+    </g>
+  );
+  return (
+    <svg width={width} height={124} viewBox={`0 0 ${width} 124`} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none' }}>
+      <g data-injury-bandage="" stroke={INK} strokeWidth={2} strokeLinejoin="round">
+        <rect x={cx - 12} y={top + 2} width={24} height={5.4} rx={2.2} fill={CREAM} />
+        <rect x={cx - 16} y={top + 4.2} width={5} height={4} rx={1.2} fill={CREAM} />
+        <path d={`M${cx - 15} ${top + 8} l-4 4 M${cx - 13} ${top + 9} l-2 4`} fill="none" strokeWidth={1.6} strokeLinecap="round" />
+      </g>
+      <g data-injury-cast="" stroke={INK} strokeWidth={2} strokeLinejoin="round">
+        <rect x={cx - 1} y={top + 27} width={9} height={11} rx={2.6} fill={CREAM} />
+        <path d={`M${cx + 1} ${top + 31} h5 M${cx + 1} ${top + 35} h5`} fill="none" strokeWidth={1} strokeLinecap="round" />
+      </g>
+      <g data-injury-crutches="">
+        {crutch(cx + 14, 4)}
+        {crutch(cx + 20, 8)}
+      </g>
+    </svg>
+  );
+}
+
 // A benched player sitting on one plank of the bench: the backrest shows behind their jersey, the
 // seat crosses at the hips and their legs dangle under it. The tag carries their score once they have one.
 // One who is outscoring a starter they could have replaced stands up on the seat and waves both arms.
 export function BenchSitter({ player: p, colors: T, side, seat: i, pts, width = SEAT_W, waving = false }: { player: Player; colors: TeamColors; side: Side; seat: number; pts?: number; width?: number; waving?: boolean }): JSX.Element {
+  const top = waving ? 48 : 58;
   const wood = (top: number, height: number, z: number): JSX.Element => (
     <div style={{ position: 'absolute', left: -1, right: -1, top, height, background: '#c58a4c', borderTop: '2px solid ' + INK, borderBottom: '2px solid ' + INK, boxShadow: 'inset 0 2px 0 #e0a868', zIndex: z }} />
   );
@@ -421,10 +453,11 @@ export function BenchSitter({ player: p, colors: T, side, seat: i, pts, width = 
       </div>
       {wood(72, 9, 0)}
       {/* Standing, the boots rest on top of the seat plank and the figure stands in front of it. */}
-      <div style={{ position: 'absolute', left: (width - 34) / 2, top: waving ? 48 : 58, width: 34, height: 42, zIndex: waving ? 3 : 1 }}>
+      <div style={{ position: 'absolute', left: (width - 34) / 2, top, width: 34, height: 42, zIndex: waving ? 3 : 1 }}>
         {figure(p, T, waving ? 'wave' : null, null, false, i, false, false)}
       </div>
       {wood(88, 8, 2)}
+      {p.injured ? injuryArt(top, width) : null}
       {/* Posts straddle the seat edges, so neighbouring seats share one. */}
       <div style={{ position: 'absolute', left: -3, top: 94, width: 6, height: 30, boxSizing: 'border-box', background: '#8a5a2c', border: '2px solid ' + INK, borderTop: 'none', zIndex: 0 }} />
       <div style={{ position: 'absolute', right: -3, top: 94, width: 6, height: 30, boxSizing: 'border-box', background: '#8a5a2c', border: '2px solid ' + INK, borderTop: 'none', zIndex: 0 }} />

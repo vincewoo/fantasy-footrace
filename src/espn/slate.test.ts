@@ -539,3 +539,37 @@ describe('co-GM owners', () => {
     expect(synth({})).toBe('');
   });
 });
+
+describe('bench injury status', () => {
+  const benchEntry = (clone: any) => {
+    const matchup = clone.schedule.find((m: any) => m.home.teamId === 1 || m.away.teamId === 1);
+    for (const side of ['home', 'away']) {
+      const found = (matchup[side].rosterForCurrentScoringPeriod?.entries ?? []).find((e: any) => e.lineupSlotId === 20);
+      if (found) return found;
+    }
+    throw new Error('no bench entry');
+  };
+
+  it('marks a benched player injured for any status ESPN lists beyond active or normal', () => {
+    for (const status of ['OUT', 'QUESTIONABLE', 'DAY_TO_DAY', 'DOUBTFUL', 'INJURY_RESERVE']) {
+      const clone = structuredClone(league);
+      const e = benchEntry(clone);
+      e.playerPoolEntry.player.injuryStatus = status;
+      const s = buildSlate(clone, season, 1, { timeZone: TZ });
+      const seat = [...s.bench!.me, ...s.bench!.opp].find(x => x.player.id === String(e.playerPoolEntry.player.id));
+      expect(seat?.player.injured).toBe(true);
+    }
+  });
+
+  it('leaves an active, normal or statusless benched player without an injured key', () => {
+    for (const status of ['ACTIVE', 'NORMAL', undefined]) {
+      const clone = structuredClone(league);
+      const e = benchEntry(clone);
+      if (status === undefined) delete e.playerPoolEntry.player.injuryStatus;
+      else e.playerPoolEntry.player.injuryStatus = status;
+      const s = buildSlate(clone, season, 1, { timeZone: TZ });
+      const seat = [...s.bench!.me, ...s.bench!.opp].find(x => x.player.id === String(e.playerPoolEntry.player.id))!;
+      expect('injured' in seat.player).toBe(false);
+    }
+  });
+});

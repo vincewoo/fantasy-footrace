@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import type { EventKind, Player, PlayEvent, TeamColors } from '../model/types';
-import { Avatar, CelebrationFigure, celebrationOf, type AvatarProps } from './Avatar';
+import { Avatar, BenchSitter, CelebrationFigure, celebrationOf, type AvatarProps } from './Avatar';
 
 const BUF: TeamColors = { c1: '#00338D', c2: '#C60C30' };
 const BAL: TeamColors = { c1: '#241773', c2: '#9E7C0C' };
@@ -339,4 +339,30 @@ it('flips the name tag left earlier in the compact layout', () => {
 
   expect(wide).toContain('left:32px');
   expect(compact).toContain('right:32px');
+});
+
+function renderSeat(injured: boolean | undefined, waving = false): string {
+  const player: Player = injured === undefined ? { ...ALLEN } : { ...ALLEN, injured };
+  return renderToStaticMarkup(<BenchSitter player={player} colors={BUF} side="me" seat={0} pts={3} waving={waving} />);
+}
+
+it('draws the bandage, cast and crutches on an injured bench sitter', () => {
+  const m = renderSeat(true);
+
+  expect(count(m, 'data-injury-bandage')).toBe(1);
+  expect(count(m, 'data-injury-cast')).toBe(1);
+  expect(count(m, 'data-injury-crutches')).toBe(1);
+
+  const waving = renderSeat(true, true);
+  expect(waving).toContain('arm-wave-f');
+  expect(count(waving, 'data-injury-bandage')).toBe(1);
+  expect(count(waving, 'data-injury-cast')).toBe(1);
+});
+
+it('leaves a healthy bench sitter without injury art', () => {
+  const unset = renderSeat(undefined);
+  const healthy = renderSeat(false);
+
+  expect(count(unset, 'data-injury-')).toBe(0);
+  expect(unset).toBe(healthy);
 });

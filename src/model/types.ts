@@ -44,6 +44,8 @@ export interface Player {
   hc?: string;
   beard?: Beard;
   band?: string;
+  // ESPN injury designation other than ACTIVE/NORMAL; absent means healthy.
+  injured?: boolean;
   window: [number, number];
 }
 

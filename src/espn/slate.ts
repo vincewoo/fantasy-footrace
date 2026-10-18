@@ -239,6 +239,8 @@ export function buildSlate(
       window,
     };
     if (pos === 'DST') player.tag = team + ' D';
+    const injury = p.injuryStatus;
+    if (injury && injury !== 'ACTIVE' && injury !== 'NORMAL') player.injured = true;
     return player;
   };
 
