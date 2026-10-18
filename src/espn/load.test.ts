@@ -333,14 +333,14 @@ it('keeps later polls on the D/ST’s own schedule', async () => {
   expect(added[0].t).toBeGreaterThan(live.toT(LIVE_NOW));
 });
 
-it('shows ESPN’s matchup win probability from each poll instead of the local model', async () => {
+it('records ESPN’s matchup win probability from each poll beside the local model', async () => {
   const { fetchImpl } = fakeFetch();
   const info = await loadLeagueInfo({ fetchImpl });
   const live = await loadLiveSlate(info, 6, { timeZone: TZ, fetchImpl, now: NOW });
   const tNow = live.toT(NOW);
 
   expect(live.slate.odds).toEqual([{ t: tNow, me: 0.48 }]);
-  expect(snapshotAt(live.slate, tNow).winPct).toBe(48);
+  expect(snapshotAt(live.slate, tNow).espnWinPct).toBe(48);
 
   const schedule = scheduleCopy();
   const entry = schedule.find((m: any) => m.away.teamId === 6);
@@ -348,6 +348,9 @@ it('shows ESPN’s matchup win probability from each poll instead of the local m
   const later = NOW + 600000;
   const next = await pollLive(info, live, { fetchImpl: matchupFetch(schedule).fetchImpl, now: later });
 
-  expect(snapshotAt(next.slate, live.toT(later)).winPct).toBe(71);
-  expect(snapshotAt(next.slate, tNow).winPct).toBe(48);
+  expect(snapshotAt(next.slate, live.toT(later)).espnWinPct).toBe(71);
+  expect(snapshotAt(next.slate, tNow).espnWinPct).toBe(48);
+  expect(snapshotAt(live.slate, tNow).winPct).toBe(
+    snapshotAt({ ...live.slate, odds: undefined }, tNow).winPct,
+  );
 });
