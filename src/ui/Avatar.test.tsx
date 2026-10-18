@@ -366,3 +366,14 @@ it('leaves a healthy bench sitter without injury art', () => {
   expect(count(unset, 'data-injury-')).toBe(0);
   expect(unset).toBe(healthy);
 });
+
+it('wraps the bandage across the forehead, above the eyes', () => {
+  const bandBottom = (m: string): number => {
+    const band = m.slice(m.indexOf('data-injury-bandage'));
+    const rect = band.match(/<rect[^>]*\by="([\d.-]+)"[^>]*\bheight="([\d.-]+)"/);
+    return Number(rect![1]) + Number(rect![2]);
+  };
+
+  expect(bandBottom(renderSeat(true))).toBeLessThanOrEqual(58 + 2.2 - 2);
+  expect(bandBottom(renderSeat(true, true))).toBeLessThanOrEqual(48 + 2.2 - 2);
+});

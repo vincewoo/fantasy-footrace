@@ -415,9 +415,9 @@ function injuryArt(top: number, width: number): JSX.Element {
   return (
     <svg width={width} height={124} viewBox={`0 0 ${width} 124`} style={{ position: 'absolute', inset: 0, zIndex: 4, pointerEvents: 'none' }}>
       <g data-injury-bandage="" stroke={INK} strokeWidth={2} strokeLinejoin="round">
-        <rect x={cx - 12} y={top + 2} width={24} height={5.4} rx={2.2} fill={CREAM} />
-        <rect x={cx - 16} y={top + 4.2} width={5} height={4} rx={1.2} fill={CREAM} />
-        <path d={`M${cx - 15} ${top + 8} l-4 4 M${cx - 13} ${top + 9} l-2 4`} fill="none" strokeWidth={1.6} strokeLinecap="round" />
+        <rect x={cx - 10.5} y={top - 4.7} width={21} height={3.4} rx={1.4} fill={CREAM} />
+        <rect x={cx - 16} y={top - 5} width={5} height={4} rx={1.2} fill={CREAM} />
+        <path d={`M${cx - 15} ${top - 1} l-4 4 M${cx - 13} ${top - 0.2} l-2 4`} fill="none" strokeWidth={1.6} strokeLinecap="round" />
       </g>
       <g data-injury-cast="" stroke={INK} strokeWidth={2} strokeLinejoin="round">
         <rect x={cx - 1} y={top + 27} width={9} height={11} rx={2.6} fill={CREAM} />
