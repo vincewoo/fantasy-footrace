@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { fmt, outscoresAStarter, sgn, snapshotAt } from '../model/derive';
+import { bestLineup, fmt, outscoresAStarter, sgn, snapshotAt } from '../model/derive';
 import type { PlayEvent, Player, Side, Slate } from '../model/types';
 import { Avatar, BenchSitter, CelebrationFigure, SEAT_W, trackLeft } from './Avatar';
 import { advance, cycleSpeed, followLive, goLive, initPlayback, scrubTo, togglePlay, type Playback } from './playback';
@@ -315,6 +315,13 @@ export function MatchupPage({
   const { t, liveT, speed, scrubbing, sound, anims, banner, w } = state;
   const compact = w < 760;
   const snapshot = snapshotAt(slate, t);
+  const coulda = { me: bestLineup(slate, snapshot, 'me', t), opp: bestLineup(slate, snapshot, 'opp', t) };
+  const couldaLine = (side: Side, size: number): JSX.Element | null => {
+    const v = coulda[side];
+    return v === undefined ? null : (
+      <div data-coulda-been={side} style={{ fontFamily: SILK, fontSize: size, whiteSpace: 'nowrap' }}>{`COULDA BEEN ${fmt(v)}`}</div>
+    );
+  };
   const out = snapshot.out;
   const totals = snapshot.totals;
   const projected = snapshot.projected;
@@ -509,6 +516,7 @@ export function MatchupPage({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: SILK, fontSize: 9 }}><div style={{ width: 8, height: 8, background: '#4a82f0', border: '1.5px solid #cdef8a' }} />{slate.me.owner}</div>
                   <div style={{ fontFamily: SILK, fontSize: 26, lineHeight: 1, fontWeight: 700, color: '#eaf7c8' }}>{fmt(totals.me)}</div>
                   <div style={{ fontFamily: SILK, fontSize: 8, whiteSpace: 'nowrap' }}>{`PROJ ${fmt(projected.me)}`}</div>
+                  {couldaLine('me', 8)}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: SILK, fontSize: 9, whiteSpace: 'nowrap' }}>
@@ -528,6 +536,7 @@ export function MatchupPage({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: SILK, fontSize: 9 }}>{slate.opp.owner}<div style={{ width: 8, height: 8, background: '#e5583f', border: '1.5px solid #cdef8a' }} /></div>
                   <div style={{ fontFamily: SILK, fontSize: 26, lineHeight: 1, fontWeight: 700, color: '#eaf7c8' }}>{fmt(totals.opp)}</div>
                   <div style={{ fontFamily: SILK, fontSize: 8, whiteSpace: 'nowrap' }}>{`PROJ ${fmt(projected.opp)}`}</div>
+                  {couldaLine('opp', 8)}
                 </div>
               </div>
             </div>
@@ -550,6 +559,7 @@ export function MatchupPage({
               <div style={{ fontFamily: LILITA, fontSize: 19, lineHeight: 1.05, color: '#eaf7c8' }}>{slate.me.name}</div>
               <div style={{ fontFamily: SILK, fontSize: compact ? '40px' : '58px', lineHeight: 1, fontWeight: 700, color: '#eaf7c8' }}>{fmt(totals.me)}</div>
               <div style={{ fontFamily: SILK, fontSize: 11 }}>{`PROJ ${fmt(projected.me)}`}</div>
+              {couldaLine('me', 11)}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, gridColumn: compact ? '1 / -1' : 'auto', order: compact ? 3 : 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: SILK, fontSize: 12, letterSpacing: '.08em', whiteSpace: 'nowrap' }}>
@@ -578,6 +588,7 @@ export function MatchupPage({
               <div style={{ fontFamily: LILITA, fontSize: 19, lineHeight: 1.05, color: '#eaf7c8' }}>{slate.opp.name}</div>
               <div style={{ fontFamily: SILK, fontSize: compact ? '40px' : '58px', lineHeight: 1, fontWeight: 700, color: '#eaf7c8' }}>{fmt(totals.opp)}</div>
               <div style={{ fontFamily: SILK, fontSize: 11 }}>{`PROJ ${fmt(projected.opp)}`}</div>
+              {couldaLine('opp', 11)}
             </div>
           </div>
         </div>

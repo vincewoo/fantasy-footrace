@@ -351,3 +351,28 @@ it('stacks the two benches on a phone, the viewer’s first', () => {
   expect(bench(1200)).toMatch(/^[^>]*>.*?grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\);gap/);
   expect(bench(393).indexOf('data-bench-side="me"')).toBeLessThan(bench(393).indexOf('data-bench-side="opp"'));
 });
+
+it('shows each side’s coulda been score under its proj line, compact and wide', () => {
+  const slate = {
+    ...HALF,
+    bench: {
+      me: [{ player: { ...HALF.lanes[0].me, id: 'b1' }, pts: 12.5 }],
+      opp: [{ player: { ...HALF.lanes[1].opp, id: 'b2' }, pts: 9.5 }],
+    },
+  };
+
+  for (const width of [390, 1200]) {
+    const m = renderToStaticMarkup(<MatchupPage slate={slate} initialWidth={width} />);
+    expect(m.match(/data-coulda-been="me"/g)).toHaveLength(1);
+    expect(m.match(/data-coulda-been="opp"/g)).toHaveLength(1);
+    expect(m).toMatch(/data-coulda-been="me"[^>]*>COULDA BEEN \d+\.\d</);
+    expect(m).toMatch(/data-coulda-been="opp"[^>]*>COULDA BEEN \d+\.\d</);
+  }
+});
+
+it('adds no coulda been line to a slate without bench data', () => {
+  const m = renderToStaticMarkup(<MatchupPage slate={HALF} />);
+
+  expect(m).not.toContain('data-coulda-been');
+  expect(m).not.toContain('COULDA BEEN');
+});

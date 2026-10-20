@@ -114,3 +114,62 @@ export function slotFits(slot: string, pos: Pos): boolean {
 export function outscoresAStarter(slate: Slate, snapshot: Snapshot, side: Side, pos: Pos, pts: number): boolean {
   return slate.lanes.some((lane, i) => slotFits(lane.slot, pos) && pts > snapshot.laneTotals[i][side]);
 }
+
+// The hindsight-optimal score: the most points the side could have scored had it started its best
+// legal lineup from its whole roster. Exact assignment, since FLEX/RB-WR/OP make greedy wrong.
+export function bestLineup(slate: Slate, snapshot: Snapshot, side: Side, t: number): number | undefined {
+  const bench = slate.bench;
+  if (!bench) return undefined;
+
+  const slots: number[] = [];
+  const pos: Pos[] = [];
+  const pts: number[] = [];
+  const own: number[] = [];
+  slate.lanes.forEach((lane, i) => {
+    const p = lane[side];
+    if (p.id === 'empty') return;
+    slots.push(i);
+    pos.push(p.pos);
+    pts.push(snapshot.laneTotals[i][side]);
+    own.push(i);
+  });
+  for (const seat of bench[side]) {
+    pos.push(seat.player.pos);
+    pts.push(seat.pts !== undefined && t >= seat.player.window[0] ? seat.pts : 0);
+    own.push(-1);
+  }
+
+  // dp[mask] = best points with exactly the lane slots in mask filled, one player per slot.
+  let dp = new Array<number>(1 << slate.lanes.length).fill(-Infinity);
+  dp[0] = 0;
+  for (let k = 0; k < pos.length; k++) {
+    const next = dp.slice();
+    for (let mask = 0; mask < dp.length; mask++) {
+      if (dp[mask] === -Infinity) continue;
+      for (const lane of slots) {
+        const bit = 1 << lane;
+        if (mask & bit) continue;
+        if (!slotFits(slate.lanes[lane].slot, pos[k]) && own[k] !== lane) continue;
+        const val = dp[mask] + pts[k];
+        if (val > next[mask | bit]) next[mask | bit] = val;
+      }
+    }
+    dp = next;
+  }
+
+  // ESPN never leaves a slot empty, so more filled slots beats more points.
+  let filled = -1;
+  let best = 0;
+  for (let mask = 0; mask < dp.length; mask++) {
+    if (dp[mask] === -Infinity) continue;
+    let n = 0;
+    for (let m = mask; m; m &= m - 1) n++;
+    if (n > filled || (n === filled && dp[mask] > best)) {
+      filled = n;
+      best = dp[mask];
+    }
+  }
+  // The started lineup is itself legal, so its total is a floor. Float sums in a different order
+  // can land a hair under it; the clamp keeps the shown score honest.
+  return Math.max(best, snapshot.totals[side]);
+}
